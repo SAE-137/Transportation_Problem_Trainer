@@ -5,6 +5,7 @@ project(Transportation_Problem_Trainer VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Quick)
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -19,6 +20,7 @@ qt_add_executable(appTransportation_Problem_Trainer
     qml/components/MatrixView.qml
     qml/components/TheoryScreen.qml
     qml/components/PracticeScreen.qml
+    mainwindow.h mainwindow.cpp
 )
 
 target_sources(appTransportation_Problem_Trainer PRIVATE
@@ -44,3 +46,4 @@ set_target_properties(appTransportation_Problem_Trainer PROPERTIES
 target_link_libraries(appTransportation_Problem_Trainer
     PRIVATE Qt6::Quick
 )
+target_link_libraries(appTransportation_Problem_Trainer PRIVATE Qt6::Widgets)

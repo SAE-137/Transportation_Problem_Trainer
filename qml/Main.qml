@@ -3,7 +3,6 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 
-// ИМПОРТ КОМПОНЕНТОВ
 import "components"
 
 ApplicationWindow {
@@ -14,11 +13,9 @@ ApplicationWindow {
     title: "Transportation Trainer"
     color: "#222222"
 
-    property string currentScreen: "screens/TheoryScreen.qml"
+    property string currentScreen: "components/TheoryScreen.qml"
 
-    // ============================
-    // ВЕРХНИЙ МЕНЮ-Бар
-    // ============================
+    //  МЕНЮ-Бар
     Rectangle {
         id: menuBar
         height: 30
@@ -49,9 +46,9 @@ ApplicationWindow {
         }
     }
 
-    // ============================
-    // ПАНЕЛЬ КНОПОК ДЕЙСТВИЙ
-    // ============================
+
+    // панель кнопок действий
+
     Rectangle {
         id: actionBar
         height: 45
@@ -82,17 +79,53 @@ ApplicationWindow {
 
             ActionButton {
                 text: "Создать"
-                onClicked: createMatrix()
+                onClicked: {
+                    if (screenLoader.item && screenLoader.item.createMatrix) {
+                        screenLoader.item.createMatrix(rowInput.value, colInput.value)
+                    } else {
+                        console.log("createMatrix не поддерживается на этом экране")
+                    }
+                }
             }
-            ActionButton { text: "Рандом" }
-            ActionButton { text: "Решить" }
-            ActionButton { text: "Очистить" }
+
+            ActionButton {
+                text: "Рандом"
+                onClicked: {
+                    if (screenLoader.item && screenLoader.item.randomize) {
+                        //screenLoader.item.randomize()
+                    } else {
+                        console.log("randomize не поддерживается на этом экране")
+                    }
+                }
+            }
+
+            ActionButton {
+                text: "Решить"
+                onClicked: {
+                    if (screenLoader.item && screenLoader.item.solve) {
+                        //screenLoader.item.solve()
+                    } else {
+                        console.log("solve не поддерживается на этом экране")
+                    }
+                }
+            }
+
+            ActionButton {
+                text: "Очистить"
+                onClicked: {
+                    if (screenLoader.item && screenLoader.item.clear) {
+                        //screenLoader.item.clear()
+                    } else {
+                        console.log("clear не поддерживается на этом экране")
+                    }
+                }
+            }
+
         }
     }
 
-    // ============================
+
     // ВКЛАДКИ (Теория / Практика)
-    // ============================
     Rectangle {
         id: modeTabs
         height: 40
@@ -105,26 +138,30 @@ ApplicationWindow {
 
             TabButton {
                 text: "Теория"
-                onClicked: currentScreen = "screens/TheoryScreen.qml"
+                onClicked: currentScreen = "components/TheoryScreen.qml"
             }
 
             TabButton {
                 text: "Практика"
-                onClicked: currentScreen = "screens/PracticeScreen.qml"
+                onClicked:
+                {
+                    currentScreen = "components/PracticeScreen.qml"
+                    console.log("кнопка практика была нажата")
+                }
             }
         }
     }
 
-    // ============================
-    // ОСНОВНАЯ ОБЛАСТЬ
-    // ============================
+
+    // основная область
+
     Rectangle {
         id: centralArea
         anchors.top: modeTabs.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        color: "#1e1e1e"
+        color: "#f7f6f4"
 
         Loader {
             id: screenLoader
@@ -134,30 +171,6 @@ ApplicationWindow {
     }
 
 
-    function createMatrix() {
-        // удаляем старую матрицу
-        for (let i = matrixContainer.children.length - 1; i >= 0; i--) {
-            let obj = matrixContainer.children[i]
-            if (obj && obj.destroy) obj.destroy()
-        }
-
-        let n = rowInput.value
-        let m = colInput.value
-
-        let component = Qt.createComponent("components/MatrixView.qml")
-
-        if (component.status === Component.Ready) {
-            component.createObject(matrixContainer, {
-                rows: n,
-                columns: m,
-                matrixData: Array(n).fill(0).map(() => Array(m).fill("")),
-                supply: Array(n).fill(""),
-                demand: Array(m).fill("")
-            })
-        } else {
-            console.log("Ошибка загрузки MatrixView:", component.errorString())
-        }
-    }
 
 
 

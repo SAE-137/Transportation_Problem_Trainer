@@ -2,48 +2,57 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Rectangle {
+Item {
     id: root
-    color: "transparent"
 
-    property int suppliers: 3
-    property int consumers: 3
 
-    // тарифы: suppliers x consumers
-    property var costMatrix: []
-    // перевозки (грузы)
-    property var loadMatrix: []
-    // запасы
-    property var supply: []
-    // потребности
-    property var demand: []
+    property int rows:    3
+    property int columns: 3
 
-    implicitWidth: body.implicitWidth + 40
-    implicitHeight: body.implicitHeight + 40
+    property var costMatrix:  []
+    property var loadMatrix:  []
+    property var supply:      []
+    property var demand:      []
+
+
+    function resizeAndReset(newRows, newColumns) {
+        if (newRows < 1 || newColumns < 1) return;
+
+        rows    = newRows
+        columns = newColumns
+
+        costMatrix  = Array(rows).fill("").map(() => Array(columns).fill(""))
+        loadMatrix  = Array(rows).fill("").map(() => Array(columns).fill(""))
+        supply      = Array(rows).fill("")
+        demand      = Array(columns).fill("")
+
+
+        topHeaderRepeater.model    = 0; topHeaderRepeater.model    = columns
+        leftLabelsRepeater.model   = 0; leftLabelsRepeater.model   = rows
+        matrixRepeater.model       = 0; matrixRepeater.model       = rows
+        bottomDemandRepeater.model = 0; bottomDemandRepeater.model = columns
+
+    }
+
 
     Column {
-        id: body
-        spacing: 10
+        spacing: 6
         anchors.centerIn: parent
 
-        // ===============================
-        // ВЕРХНИЕ ЗАГОЛОВКИ (A1 A2 ...)
-        // ===============================
         Row {
             spacing: 4
             anchors.horizontalCenter: parent.horizontalCenter
 
-            //Rectangle { width: 70; height: 40; color: "transparent" }
+            Rectangle { width: 70; height: 40; color: "#e8e8e8"; border.color: "#666"; radius: 4 }
 
             Repeater {
-                model: consumers
-                Rectangle {
+                id: topHeaderRepeater
+                model: columns
+                delegate: Rectangle {
                     width: 70; height: 40
                     color: "#e8e8e8"
                     border.color: "#666"
-                    border.width: 1
                     radius: 4
-
                     Text {
                         anchors.centerIn: parent
                         font.pixelSize: 16
@@ -51,28 +60,36 @@ Rectangle {
                     }
                 }
             }
+
+            Rectangle {
+                width: 70; height: 40
+                color: "#f7f7f7"
+                border.color: "#666"
+                radius: 4
+                Text {
+                    anchors.centerIn: parent
+                    font.pixelSize: 12
+                    color: "#444"
+                    text: "Запасы"
+                }
+            }
         }
 
-        // ===============================
-        // ОСНОВНАЯ ОБЛАСТЬ
-        // ===============================
         Row {
             spacing: 4
             anchors.horizontalCenter: parent.horizontalCenter
 
-            // ---- ЛЕВЫЕ МЕТКИ (B1, B2, B3...) ----
             Column {
                 spacing: 4
 
                 Repeater {
-                    model: suppliers
-                    Rectangle {
+                    id: leftLabelsRepeater
+                    model: rows
+                    delegate: Rectangle {
                         width: 70; height: 70
                         color: "#e8e8e8"
                         border.color: "#666"
-                        border.width: 1
                         radius: 4
-
                         Text {
                             anchors.centerIn: parent
                             font.pixelSize: 16
@@ -81,140 +98,122 @@ Rectangle {
                     }
                 }
 
-                // подпись "Запасы"
                 Rectangle {
-                    width: 70; height: 40
+                    width: 70; height: 70
                     color: "#f7f7f7"
                     border.color: "#666"
                     radius: 4
-
                     Text {
                         anchors.centerIn: parent
-                        text: "Запасы"
                         font.pixelSize: 13
                         color: "#444"
+                        text: "Потреб."
                     }
                 }
             }
 
-            // ===============================
-            // МАТРИЦА ТАРИФОВ + ГРУЗОВ
-            // ===============================
-            Grid {
-                id: table
-                rows: suppliers
-                columns: consumers
-                spacing: 4
-
-                Repeater {
-                    model: suppliers * consumers
-
-                    Rectangle {
-                        width: 70
-                        height: 70
-                        radius: 6
-                        color: "#fdfdfd"
-                        border.color: "#555"
-                        border.width: 1
-
-                        property int r: Math.floor(index / consumers)
-                        property int c: index % consumers
-
-                        Column {
-                            anchors.fill: parent
-                            anchors.margins: 4
-
-                            // тариф (верх справа)
-                            TextInput {
-                                anchors.top: parent.top
-                                anchors.right: parent.right
-                                width: 30
-                                color: "#333"
-                                font.pixelSize: 14
-                                horizontalAlignment: TextInput.AlignRight
-                                text: root.costMatrix[r][c]
-                                validator: IntValidator{}
-                                onTextChanged: root.costMatrix[r][c] = parseInt(text)
-                            }
-
-                            // груз (внизу по центру)
-                            TextInput {
-                                anchors.bottom: parent.bottom
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                width: 35
-                                color: "#222"
-                                font.pixelSize: 18
-                                horizontalAlignment: TextInput.AlignHCenter
-                                text: root.loadMatrix[r][c]
-                                validator: IntValidator{}
-                                onTextChanged: root.loadMatrix[r][c] = parseInt(text)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ===============================
-            // ЗАПАСЫ СПРАВА
-            // ===============================
             Column {
                 spacing: 4
 
                 Repeater {
-                    model: suppliers
-                    Rectangle {
-                        width: 70; height: 70
-                        radius: 4
-                        color: "#fff8e6"
-                        border.color: "#666"
+                    id: matrixRepeater
+                    model: rows
 
-                        TextInput {
-                            anchors.centerIn: parent
-                            font.pixelSize: 18
-                            color: "#333"
-                            horizontalAlignment: Text.AlignHCenter
-                            text: root.supply[index]
-                            validator: IntValidator{}
-                            onTextChanged: root.supply[index] = parseInt(text)
+                    Row {
+                        id: rowRow
+                        property int rowIndex: index   // индекс строки
+                        spacing: 4
+
+                        Repeater {
+                            model: columns
+                            delegate: Rectangle {
+                                readonly property int r: rowRow.rowIndex
+                                readonly property int c: index
+                                width: 70; height: 70
+                                color: "#ffffff"
+                                border.color: "#555"
+                                radius: 6
+
+                                Column {
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+
+                                    TextInput {
+                                        text: costMatrix[r][c]
+                                        anchors.top: parent.top
+                                        anchors.right: parent.right
+                                        width: 30
+                                        horizontalAlignment: Text.AlignRight
+                                        font.pixelSize: 14
+                                        validator: IntValidator {}
+                                        onTextChanged: if (acceptableInput) costMatrix[r][c] = text
+                                    }
+
+                                    TextInput {
+                                        text: loadMatrix[r][c]
+                                        anchors.bottom: parent.bottom
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        width: 35
+                                        horizontalAlignment: Text.AlignHCenter
+                                        font.pixelSize: 18
+                                        validator: IntValidator {}
+                                        onTextChanged: if (acceptableInput) loadMatrix[r][c] = text
+                                    }
+                                }
+                            }
+                        }
+
+                        // Запасы (supply)
+                        Rectangle {
+                            width: 70; height: 70
+                            color: "#fff8e6"
+                            border.color: "#666"
+                            radius: 4
+                            TextInput {
+                                text: supply[rowRow.rowIndex]
+                                anchors.centerIn: parent
+                                font.pixelSize: 18
+                                color: "#333"
+                                horizontalAlignment: Text.AlignHCenter
+
+                                validator: IntValidator {}
+                                readonly property int r: rowRow.rowIndex
+                                onTextChanged: if (acceptableInput) supply[r] = text
+                            }
                         }
                     }
                 }
-            }
-        }
 
-        // ===============================
-        // ПОТРЕБНОСТИ СНИЗУ
-        // ===============================
-        Row {
-            spacing: 4
-            anchors.horizontalCenter: parent.horizontalCenter
+                // спрос (demand)
+                Row {
+                    spacing: 4
 
-            Repeater {
-                model: consumers
-                Rectangle {
-                    width: 70; height: 40
-                    radius: 4
-                    color: "#fff8e6"
-                    border.color: "#666"
-
-                    TextInput {
-                        anchors.centerIn: parent
-                        font.pixelSize: 18
-                        color: "#333"
-                        horizontalAlignment: Text.AlignHCenter
-                        text: root.demand[index]
-                        validator: IntValidator{}
-                        onTextChanged: root.demand[index] = parseInt(text)
+                    Repeater {
+                        id: bottomDemandRepeater
+                        model: columns
+                        delegate: Rectangle {
+                            width: 70; height: 70
+                            radius: 4
+                            color: "#fff8e6"
+                            border.color: "#666"
+                            TextInput {
+                                anchors.centerIn: parent
+                                font.pixelSize: 18
+                                color: "#333"
+                                horizontalAlignment: Text.AlignHCenter
+                                text: demand[index]
+                                validator: IntValidator {}
+                                onTextChanged: if (acceptableInput) demand[index] = text
+                            }
+                        }
                     }
+
+                    // пустая ячейка для выравнивания
+                    Item { width: 70; height: 70 }
                 }
             }
         }
-
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            font.pixelSize: 14
-            color: "#444"
-            text: "Потребности"
-        }
     }
+
+    Component.onCompleted: resizeAndReset(rows, columns)
 }
