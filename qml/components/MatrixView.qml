@@ -4,44 +4,45 @@ import QtQuick.Layouts
 
 Item {
     id: root
+    signal changed()
 
-
-    property int rows:    3
+    property int rows: 3
     property int columns: 3
 
-    property var costMatrix:  []
-    property var loadMatrix:  []
-    property var supply:      []
-    property var demand:      []
+    property var costMatrix: []
+    property var loadMatrix: []
+    property var supply: []
+    property var demand: []
 
+    implicitWidth: content.implicitWidth
+    implicitHeight: content.implicitHeight
 
     function resizeAndReset(newRows, newColumns) {
         if (newRows < 1 || newColumns < 1) return;
 
-        rows    = newRows
+        rows = newRows
         columns = newColumns
 
-        costMatrix  = Array(rows).fill("").map(() => Array(columns).fill(""))
-        loadMatrix  = Array(rows).fill("").map(() => Array(columns).fill(""))
-        supply      = Array(rows).fill("")
-        demand      = Array(columns).fill("")
+        costMatrix = Array(rows).fill("").map(() => Array(columns).fill(""))
+        loadMatrix = Array(rows).fill("").map(() => Array(columns).fill(""))
+        supply = Array(rows).fill("")
+        demand = Array(columns).fill("")
 
-
-        topHeaderRepeater.model    = 0; topHeaderRepeater.model    = columns
-        leftLabelsRepeater.model   = 0; leftLabelsRepeater.model   = rows
-        matrixRepeater.model       = 0; matrixRepeater.model       = rows
+        topHeaderRepeater.model = 0;    topHeaderRepeater.model = columns
+        leftLabelsRepeater.model = 0;   leftLabelsRepeater.model = rows
+        matrixRepeater.model = 0;       matrixRepeater.model = rows
         bottomDemandRepeater.model = 0; bottomDemandRepeater.model = columns
 
+        root.changed()
     }
 
-
     Column {
+        id: content
         spacing: 6
-        anchors.centerIn: parent
 
+        // Верхний заголовок
         Row {
             spacing: 4
-            anchors.horizontalCenter: parent.horizontalCenter
 
             Rectangle { width: 70; height: 40; color: "#e8e8e8"; border.color: "#666"; radius: 4 }
 
@@ -77,8 +78,8 @@ Item {
 
         Row {
             spacing: 4
-            anchors.horizontalCenter: parent.horizontalCenter
 
+            // Левый столбец B1..Bm + "Потреб."
             Column {
                 spacing: 4
 
@@ -112,6 +113,7 @@ Item {
                 }
             }
 
+            // Центральная матрица + нижний demand
             Column {
                 spacing: 4
 
@@ -121,7 +123,7 @@ Item {
 
                     Row {
                         id: rowRow
-                        property int rowIndex: index   // индекс строки
+                        property int rowIndex: index
                         spacing: 4
 
                         Repeater {
@@ -129,36 +131,45 @@ Item {
                             delegate: Rectangle {
                                 readonly property int r: rowRow.rowIndex
                                 readonly property int c: index
+
                                 width: 70; height: 70
                                 color: "#ffffff"
                                 border.color: "#555"
                                 radius: 6
+                                clip: true
 
-                                Column {
-                                    anchors.fill: parent
-                                    anchors.margins: 4
+                                TextInput {
+                                    anchors.top: parent.top
+                                    anchors.left: parent.left
+                                    anchors.margins: 6
 
-                                    TextInput {
-                                        text: costMatrix[r][c]
-                                        anchors.top: parent.top
-                                        anchors.right: parent.right
-                                        width: 30
-                                        horizontalAlignment: Text.AlignRight
-                                        font.pixelSize: 14
-                                        validator: IntValidator {}
-                                        onTextChanged: if (acceptableInput) costMatrix[r][c] = text
+                                    width: parent.width - 12
+                                    height: 22
+
+                                    font.pixelSize: 16
+                                    horizontalAlignment: Text.AlignLeft
+                                    verticalAlignment: Text.AlignTop
+
+                                    text: costMatrix[r][c]
+                                    validator: IntValidator { bottom: 0 }
+                                    inputMethodHints: Qt.ImhDigitsOnly
+                                    maximumLength: 6
+                                    clip: true
+
+                                    onTextChanged: {
+                                        if (text === "") {
+                                            costMatrix[r][c] = ""
+                                            costMatrix = costMatrix
+                                            root.changed()
+                                            return
+                                        }
+                                        if (acceptableInput) {
+                                            costMatrix[r][c] = text
+                                            costMatrix = costMatrix
+                                        }
+                                        root.changed()
                                     }
 
-                                    TextInput {
-                                        text: loadMatrix[r][c]
-                                        anchors.bottom: parent.bottom
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        width: 35
-                                        horizontalAlignment: Text.AlignHCenter
-                                        font.pixelSize: 18
-                                        validator: IntValidator {}
-                                        onTextChanged: if (acceptableInput) loadMatrix[r][c] = text
-                                    }
                                 }
                             }
                         }
@@ -169,22 +180,47 @@ Item {
                             color: "#fff8e6"
                             border.color: "#666"
                             radius: 4
+                            clip: true
+
                             TextInput {
-                                text: supply[rowRow.rowIndex]
+                                readonly property int r: rowRow.rowIndex
+                                text: supply[r]
+
                                 anchors.centerIn: parent
+                                width: parent.width - 12
+                                height: 28
+
                                 font.pixelSize: 18
                                 color: "#333"
                                 horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
 
-                                validator: IntValidator {}
-                                readonly property int r: rowRow.rowIndex
-                                onTextChanged: if (acceptableInput) supply[r] = text
+                                validator: IntValidator { bottom: 0 }
+                                inputMethodHints: Qt.ImhDigitsOnly
+                                maximumLength: 6
+                                clip: true
+
+                                onTextChanged: {
+                                    if (text === "") {
+                                        supply[r] = ""
+                                        supply = supply
+                                        root.changed()
+                                        return
+                                    }
+                                    if (acceptableInput) {
+                                        supply[r] = text
+                                        supply = supply
+                                    }
+                                    root.changed()
+                                }
+
+
                             }
                         }
                     }
                 }
 
-                // спрос (demand)
+                // Нижний ряд — спрос (demand)
                 Row {
                     spacing: 4
 
@@ -196,19 +232,43 @@ Item {
                             radius: 4
                             color: "#fff8e6"
                             border.color: "#666"
+                            clip: true
+
                             TextInput {
+                                text: demand[index]
+
                                 anchors.centerIn: parent
+                                width: parent.width - 12
+                                height: 28
+
                                 font.pixelSize: 18
                                 color: "#333"
                                 horizontalAlignment: Text.AlignHCenter
-                                text: demand[index]
-                                validator: IntValidator {}
-                                onTextChanged: if (acceptableInput) demand[index] = text
+                                verticalAlignment: Text.AlignVCenter
+
+                                validator: IntValidator { bottom: 0 }
+                                inputMethodHints: Qt.ImhDigitsOnly
+                                maximumLength: 6
+                                clip: true
+
+                                onTextChanged: {
+                                    if (text === "") {
+                                        demand[index] = ""
+                                        demand = demand
+                                        root.changed()
+                                        return
+                                    }
+                                    if (acceptableInput) {
+                                        demand[index] = text
+                                        demand = demand
+                                    }
+                                    root.changed()
+                                }
+
                             }
                         }
                     }
 
-                    // пустая ячейка для выравнивания
                     Item { width: 70; height: 70 }
                 }
             }
@@ -216,4 +276,38 @@ Item {
     }
 
     Component.onCompleted: resizeAndReset(rows, columns)
+
+    function isComplete() {
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < columns; c++) {
+                if (costMatrix[r][c] === "" || costMatrix[r][c] === undefined)
+                    return false
+            }
+            if (supply[r] === "" || supply[r] === undefined)
+                return false
+        }
+        for (let c = 0; c < columns; c++) {
+            if (demand[c] === "" || demand[c] === undefined)
+                return false
+        }
+        return true
+    }
+
+    function randomFill() {
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < columns; c++) {
+                costMatrix[r][c] = String(Math.floor(Math.random() * 30) + 1)
+            }
+            supply[r] = String(Math.floor(Math.random() * 50) + 10)
+        }
+        for (let c = 0; c < columns; c++) {
+            demand[c] = String(Math.floor(Math.random() * 50) + 10)
+        }
+
+        costMatrix = costMatrix.map(row => row.slice())
+        supply = supply.slice()
+        demand = demand.slice()
+
+        changed()
+    }
 }

@@ -92,7 +92,7 @@ ApplicationWindow {
                 text: "Рандом"
                 onClicked: {
                     if (screenLoader.item && screenLoader.item.randomize) {
-                        //screenLoader.item.randomize()
+                        screenLoader.item.randomize()
                     } else {
                         console.log("randomize не поддерживается на этом экране")
                     }

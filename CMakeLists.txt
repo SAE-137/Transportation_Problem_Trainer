@@ -21,6 +21,8 @@ qt_add_executable(appTransportation_Problem_Trainer
     qml/components/TheoryScreen.qml
     qml/components/PracticeScreen.qml
     mainwindow.h mainwindow.cpp
+    qml/components/MatrixSetupPage.qml
+    qml/components/BalanceCheckPage.qml
 )
 
 target_sources(appTransportation_Problem_Trainer PRIVATE
