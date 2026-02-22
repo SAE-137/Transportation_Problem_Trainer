@@ -6,26 +6,37 @@ Item {
     id: root
     anchors.fill: parent
 
+    // чтобы PracticeScreen мог переключить этап
     signal proceedRequested()
 
+    // наружу отдаём доступ к матрице (для копирования в work)
+    property alias matrix: matrix
+
+    // когда этап 0 завершён — блокируем редактирование (как "скриншот")
+    property bool locked: false
+
+    // входные параметры (их будет дергать верхний actionBar)
     function createMatrix(r, c) {
+        if (locked) return
         matrix.resizeAndReset(r, c)
         updateProceedState()
     }
 
     function randomize() {
+        if (locked) return
         matrix.randomFill()
         updateProceedState()
     }
 
-
     function clear() {
+        if (locked) return
         matrix.resizeAndReset(matrix.rows, matrix.columns)
         updateProceedState()
     }
 
     function updateProceedState() {
-        proceedButton.enabled = matrix.isComplete()
+        // если locked — кнопка уже не нужна
+        proceedButton.enabled = (!locked) && matrix.isComplete()
     }
 
     ColumnLayout {
@@ -37,6 +48,8 @@ Item {
         MatrixView {
             id: matrix
             Layout.alignment: Qt.AlignHCenter
+            readOnly: root.locked
+            autoInit: true
 
             onChanged: root.updateProceedState()
         }
@@ -44,8 +57,9 @@ Item {
         Button {
             id: proceedButton
             Layout.alignment: Qt.AlignHCenter
-            text: "Приступить к решению"
+            text: root.locked ? "Этап завершён" : "Приступить к решению"
             enabled: false
+            visible: !root.locked
 
             background: Rectangle {
                 radius: 10

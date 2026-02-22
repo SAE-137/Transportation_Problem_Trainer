@@ -4,6 +4,10 @@ import QtQuick.Layouts
 
 Item {
     id: root
+    property bool readOnly: false
+    property bool autoInit: true
+
+
     signal changed()
 
     property int rows: 3
@@ -155,6 +159,8 @@ Item {
                                     inputMethodHints: Qt.ImhDigitsOnly
                                     maximumLength: 6
                                     clip: true
+                                    readOnly: root.readOnly
+
 
                                     onTextChanged: {
                                         if (text === "") {
@@ -199,6 +205,9 @@ Item {
                                 inputMethodHints: Qt.ImhDigitsOnly
                                 maximumLength: 6
                                 clip: true
+
+                                readOnly: root.readOnly
+
 
                                 onTextChanged: {
                                     if (text === "") {
@@ -251,6 +260,9 @@ Item {
                                 maximumLength: 6
                                 clip: true
 
+                                readOnly: root.readOnly
+
+
                                 onTextChanged: {
                                     if (text === "") {
                                         demand[index] = ""
@@ -275,7 +287,11 @@ Item {
         }
     }
 
-    Component.onCompleted: resizeAndReset(rows, columns)
+    Component.onCompleted: {
+        if (autoInit)
+            resizeAndReset(rows, columns)
+    }
+
 
     function isComplete() {
         for (let r = 0; r < rows; r++) {

@@ -17,19 +17,52 @@ Item {
         "4 Потенциалы"
     ]
 
-    readonly property var stageSources: [
-        "MatrixSetupPage.qml",
-        "BalanceCheckPage.qml",
-        "BalanceFixPage.qml",
-        "MinCostPlanPage.qml",
-        "PotentialsIterationPage.qml"
-    ]
+    // ====== СЛЕПКИ ПО ЭТАПАМ (скриншоты данных) ======
+    // snapshot = { rows, cols, cost(2D), supply(1D), demand(1D) }
+    property var snapshots: [ null, null, null, null, null ]
+    property int completedUpTo: -1
+
+    // ====== ТЕКУЩАЯ РАБОЧАЯ МАТРИЦА (меняется от этапа к этапу) ======
+    property int workRows: 0
+    property int workCols: 0
+    property var workCost: []
+    property var workSupply: []
+    property var workDemand: []
+
+    function copy2D(a) { return a.map(row => row.slice()) }
+    function copy1D(a) { return a.slice() }
+
+    function makeSnapshotFromWork() {
+        return {
+            rows: workRows,
+            cols: workCols,
+            cost: copy2D(workCost),
+            supply: copy1D(workSupply),
+            demand: copy1D(workDemand)
+        }
+    }
+
+    function freezeStage(stageIndex) {
+        snapshots[stageIndex] = makeSnapshotFromWork()
+        // важно: "пнуть" обновление var-массива
+        snapshots = snapshots
+        completedUpTo = Math.max(completedUpTo, stageIndex)
+    }
+
+    function dataRows(stageIndex)  { return snapshots[stageIndex] ? snapshots[stageIndex].rows : workRows }
+    function dataCols(stageIndex)  { return snapshots[stageIndex] ? snapshots[stageIndex].cols : workCols }
+    function dataCost(stageIndex)  { return snapshots[stageIndex] ? snapshots[stageIndex].cost : workCost }
+    function dataSupply(stageIndex){ return snapshots[stageIndex] ? snapshots[stageIndex].supply : workSupply }
+    function dataDemand(stageIndex){ return snapshots[stageIndex] ? snapshots[stageIndex].demand : workDemand }
 
     function goToStage(stage) {
         if (stage < 0 || stage > 4) return
         if (stage > maxUnlockedStage) return
         currentStage = stage
-        stageLoader.source = stageSources[stage]
+        pages.currentIndex = stage
+
+        // блокируем редактирование этапа 0, если он уже завершён
+        setupPage.locked = (snapshots[0] !== null)
     }
 
     function unlockAndGo(nextStage) {
@@ -37,11 +70,58 @@ Item {
         goToStage(nextStage)
     }
 
+    // ===== API для верхнего actionBar (ApplicationWindow) =====
+    function createMatrix(r, c) {
+        if (currentStage === 0 && setupPage && setupPage.createMatrix && !setupPage.locked) {
+            setupPage.createMatrix(r, c)
+            return
+        }
+        console.log("createMatrix недоступен на текущем этапе")
+    }
+
+    function randomize() {
+        if (currentStage === 0 && setupPage && setupPage.randomize && !setupPage.locked) {
+            setupPage.randomize()
+            return
+        }
+        console.log("randomize недоступен на текущем этапе")
+    }
+
+    function clear() {
+        if (currentStage === 0 && setupPage && setupPage.clear && !setupPage.locked) {
+            setupPage.clear()
+            return
+        }
+        console.log("clear недоступен на текущем этапе")
+    }
+
+    function solve() {
+        console.log("solve недоступен на текущем этапе")
+    }
+
+    // ====== ЭТАП 0 -> старт практики ======
+    function startPracticeFromSetup() {
+        // создаём рабочую матрицу как копию ввода (этап 0)
+        workRows = setupPage.matrix.rows
+        workCols = setupPage.matrix.columns
+        workCost = copy2D(setupPage.matrix.costMatrix)
+        workSupply = copy1D(setupPage.matrix.supply)
+        workDemand = copy1D(setupPage.matrix.demand)
+
+        // замораживаем этап 0 (скриншот)
+        freezeStage(0)
+
+        // блокируем редактирование ввода
+        setupPage.locked = true
+
+        // переходим на этап 1
+        unlockAndGo(1)
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 10
 
-        // ===== Верхний бар этапов =====
         Rectangle {
             Layout.fillWidth: true
             height: 52
@@ -56,7 +136,6 @@ Item {
 
                 Repeater {
                     model: 5
-
                     delegate: Button {
                         required property int index
                         Layout.fillHeight: true
@@ -71,7 +150,7 @@ Item {
                             border.color: (index === root.currentStage) ? "#111111" : "#cccccc"
                             color: {
                                 if (index === root.currentStage) return "#dbeafe"
-                                if (index < root.currentStage) return "#dcfce7"
+                                if (root.snapshots[index] !== null) return "#dcfce7"     // этап завершён (зелёный)
                                 if (index <= root.maxUnlockedStage) return "#ecfdf5"
                                 return "#f3f4f6"
                             }
@@ -84,7 +163,6 @@ Item {
             }
         }
 
-        // ===== Контент этапа =====
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -92,64 +170,78 @@ Item {
             color: "#f7f6f4"
             border.color: "#e5e5e5"
 
-            Loader {
-                id: stageLoader
+            StackLayout {
+                id: pages
                 anchors.fill: parent
                 anchors.margins: 12
-                source: root.stageSources[root.currentStage]
+                currentIndex: root.currentStage
+
+                // ---- Этап 0 ----
+                MatrixSetupPage {
+                    id: setupPage
+                    onProceedRequested: root.startPracticeFromSetup()
+                }
+
+                // ---- Этап 1 ----
+                BalanceCheckPage {
+                    id: balancePage
+
+                    rows: root.dataRows(1)
+                    columns: root.dataCols(1)
+                    costMatrix: root.dataCost(1)
+                    supply: root.dataSupply(1)
+                    demand: root.dataDemand(1)
+
+                    // ВАЖНО: замораживаем этап 1 только если ответ был правильным
+                    onBalancedYes: {
+                        root.freezeStage(1)
+                        root.unlockAndGo(3)
+                    }
+                    onBalancedNo: {
+                        root.freezeStage(1)
+                        root.unlockAndGo(2)
+                    }
+                }
+
+                // ---- Этап 2 ----
+                BalanceFixPage {
+                    id: balanceFixPage
+
+                    rows: root.workRows
+                    columns: root.workCols
+                    costMatrix: root.workCost
+                    supply: root.workSupply
+                    demand: root.workDemand
+
+                    onBalancedMatrixReady: (newRows, newCols, newCost, newSupply, newDemand) => {
+                        root.workRows = newRows
+                        root.workCols = newCols
+                        root.workCost = root.copy2D(newCost)
+                        root.workSupply = root.copy1D(newSupply)
+                        root.workDemand = root.copy1D(newDemand)
+
+                        root.freezeStage(2)
+                        root.unlockAndGo(3)
+                    }
+                }
+
+
+                // ---- Этап 3 ----
+                MinCostPlanPage {
+                    id: minCostPage
+
+                    rows: root.dataRows(3)
+                    columns: root.dataCols(3)
+                    costMatrix: root.dataCost(3)
+                    supply: root.dataSupply(3)
+                    demand: root.dataDemand(3)
+                }
+
+                // ---- Этап 4 (позже) ----
+                Item { } // заглушка, чтобы StackLayout имел 5 страниц
             }
-        }
-    }
-    Connections {
-        target: stageLoader.item
-        ignoreUnknownSignals: true
-
-        // этап 0 -> этап 1
-        function onProceedRequested(payload) {
-            root.unlockAndGo(1)
-        }
-
-        function onBalancedYes() {
-            root.unlockAndGo(3)
-        }
-
-        function onBalancedNo() {
-            root.unlockAndGo(2)
         }
     }
 
     Component.onCompleted: goToStage(0)
-
-    function createMatrix(r, c) {
-        if (stageLoader.item && stageLoader.item.createMatrix) {
-            stageLoader.item.createMatrix(r, c)
-        } else {
-            console.log("createMatrix недоступен на текущем этапе")
-        }
-    }
-
-    function randomize() {
-        if (stageLoader.item && stageLoader.item.randomize) {
-            stageLoader.item.randomize()
-        } else {
-            console.log("randomize недоступен на текущем этапе")
-        }
-    }
-
-    function clear() {
-        if (stageLoader.item && stageLoader.item.clear) {
-            stageLoader.item.clear()
-        } else {
-            console.log("clear недоступен на текущем этапе")
-        }
-    }
-
-    function solve() {
-        if (stageLoader.item && stageLoader.item.solve) {
-            stageLoader.item.solve()
-        } else {
-            console.log("solve недоступен на текущем этапе")
-        }
-    }
-
 }

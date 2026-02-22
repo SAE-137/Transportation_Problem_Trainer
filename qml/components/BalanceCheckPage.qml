@@ -6,12 +6,103 @@ Item {
     id: root
     anchors.fill: parent
 
+    // Данные матрицы приходят из PracticeScreen
+    property int rows: 0
+    property int columns: 0
+    property var costMatrix: []
+    property var supply: []
+    property var demand: []
+
     signal balancedYes()
     signal balancedNo()
 
+    // --- служебные функции ---
+    function toIntOrNaN(x) {
+        // x у тебя строка. Пустая строка -> NaN
+        if (x === undefined || x === null) return NaN
+        if (typeof x === "number") return x
+        const s = String(x).trim()
+        if (s === "") return NaN
+        const n = Number(s)
+        return Number.isFinite(n) ? n : NaN
+    }
+
+    function checkBalanced() {
+        // Возвращает объект: { ok: bool, balanced: bool, sumS: number, sumD: number, error: string }
+        let sumS = 0
+        let sumD = 0
+
+        // базовые проверки
+        if (rows <= 0 || columns <= 0)
+            return { ok: false, error: "Неверная размерность матрицы" }
+
+        if (!supply || supply.length !== rows)
+            return { ok: false, error: "Запасы не заполнены или размер не совпадает" }
+
+        if (!demand || demand.length !== columns)
+            return { ok: false, error: "Потребности не заполнены или размер не совпадает" }
+
+        for (let r = 0; r < rows; r++) {
+            const v = toIntOrNaN(supply[r])
+            if (!Number.isFinite(v))
+                return { ok: false, error: "Запасы заполнены некорректно" }
+            sumS += v
+        }
+
+        for (let c = 0; c < columns; c++) {
+            const v = toIntOrNaN(demand[c])
+            if (!Number.isFinite(v))
+                return { ok: false, error: "Потребности заполнены некорректно" }
+            sumD += v
+        }
+
+        return { ok: true, balanced: sumS === sumD, sumS: sumS, sumD: sumD }
+    }
+
+    function handleAnswer(userSaysBalanced) {
+        const res = checkBalanced()
+        if (!res.ok) {
+            console.log("Ошибка данных:", res.error)
+            return
+        }
+
+        if (userSaysBalanced && res.balanced) {
+            // ✅ пользователь прав: сбалансирована
+            root.balancedYes()
+            return
+        }
+
+        if (!userSaysBalanced && !res.balanced) {
+            // ✅ пользователь прав: НЕ сбалансирована
+            root.balancedNo()
+            return
+        }
+
+        // ❌ пользователь ошибся
+        if (userSaysBalanced && !res.balanced) {
+            console.log("Ошибка: задача НЕ сбалансирована (Σзапасов=" + res.sumS + ", Σпотребностей=" + res.sumD + ")")
+        } else if (!userSaysBalanced && res.balanced) {
+            console.log("Ошибка: задача сбалансирована (Σзапасов=" + res.sumS + ", Σпотребностей=" + res.sumD + ")")
+        }
+    }
+
     ColumnLayout {
-        anchors.centerIn: parent
+        anchors.fill: parent
         spacing: 16
+
+        // Матрица сверху (только просмотр)
+        MatrixView {
+            id: matrixPreview
+            Layout.alignment: Qt.AlignHCenter
+            readOnly: true
+            autoInit: false
+
+            rows: root.rows
+            columns: root.columns
+            costMatrix: root.costMatrix
+            supply: root.supply
+            demand: root.demand
+        }
 
         Text {
             text: "Сбалансирована ли транспортная задача?"
@@ -28,15 +119,27 @@ Item {
             Button {
                 text: "Да"
                 background: Rectangle { radius: 10; color: "#22c55e" }
-                contentItem: Text { text: "Да"; color: "white"; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                onClicked: root.balancedYes()
+                contentItem: Text {
+                    text: "Да"
+                    color: "white"
+                    font.pixelSize: 16
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: handleAnswer(true)
             }
 
             Button {
                 text: "Нет"
                 background: Rectangle { radius: 10; color: "#ef4444" }
-                contentItem: Text { text: "Нет"; color: "white"; font.pixelSize: 16; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                onClicked: root.balancedNo()
+                contentItem: Text {
+                    text: "Нет"
+                    color: "white"
+                    font.pixelSize: 16
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: handleAnswer(false)
             }
         }
 
@@ -46,5 +149,7 @@ Item {
             font.pixelSize: 14
             Layout.alignment: Qt.AlignHCenter
         }
+
+        Item { Layout.fillHeight: true }
     }
 }

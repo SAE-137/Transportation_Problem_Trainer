@@ -23,6 +23,8 @@ qt_add_executable(appTransportation_Problem_Trainer
     mainwindow.h mainwindow.cpp
     qml/components/MatrixSetupPage.qml
     qml/components/BalanceCheckPage.qml
+    qml/components/BalanceFixPage.qml
+    qml/components/MinCostPlanPage.qml
 )
 
 target_sources(appTransportation_Problem_Trainer PRIVATE
