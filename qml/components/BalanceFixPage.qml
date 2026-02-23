@@ -15,8 +15,8 @@ Item {
 
     // ВАЖНО: вместо мутации локальных props, отдаём наружу новый результат
     // newRows/newCols + новые массивы
-    signal balancedMatrixReady(int newRows, int newCols, var newCost, var newSupply, var newDemand)
-
+    // who: 0 = добавить поставщика (строка), 1 = добавить потребителя (столбец)
+    signal balanceFixPassed(int who, int volume)
     // UI state
     property int selectedWho: -1      // 0 = поставщик, 1 = потребитель
     property string volumeText: ""
@@ -161,7 +161,7 @@ Item {
         }
 
         // ✅ Всё верно -> строим результат и отдаём наружу
-        const res = buildBalancedResult(exp.who, exp.volume)
+        root.balanceFixPassed(exp.who, exp.volume)
 
         console.log("Балансировка выполнена: добавлен " +
                     (exp.who === 0 ? "фиктивный поставщик" : "фиктивный потребитель") +

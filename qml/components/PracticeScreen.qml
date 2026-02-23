@@ -29,6 +29,10 @@ Item {
     property var workSupply: []
     property var workDemand: []
 
+
+    property int pendingBalanceWho: -1
+    property int pendingBalanceVolume: 0
+
     function copy2D(a) { return a.map(row => row.slice()) }
     function copy1D(a) { return a.slice() }
 
@@ -213,12 +217,9 @@ Item {
                     supply: root.workSupply
                     demand: root.workDemand
 
-                    onBalancedMatrixReady: (newRows, newCols, newCost, newSupply, newDemand) => {
-                        root.workRows = newRows
-                        root.workCols = newCols
-                        root.workCost = root.copy2D(newCost)
-                        root.workSupply = root.copy1D(newSupply)
-                        root.workDemand = root.copy1D(newDemand)
+                    onBalanceFixPassed: (who, volume) => {
+                        root.pendingBalanceWho = who
+                        root.pendingBalanceVolume = volume
 
                         root.freezeStage(2)
                         root.unlockAndGo(3)
@@ -230,11 +231,14 @@ Item {
                 MinCostPlanPage {
                     id: minCostPage
 
-                    rows: root.dataRows(3)
-                    columns: root.dataCols(3)
-                    costMatrix: root.dataCost(3)
-                    supply: root.dataSupply(3)
-                    demand: root.dataDemand(3)
+                    rows: root.workRows
+                    columns: root.workCols
+                    costMatrix: root.workCost
+                    supply: root.workSupply
+                    demand: root.workDemand
+
+                    balanceWho: root.pendingBalanceWho
+                    balanceVolume: root.pendingBalanceVolume
                 }
 
                 // ---- Этап 4 (позже) ----

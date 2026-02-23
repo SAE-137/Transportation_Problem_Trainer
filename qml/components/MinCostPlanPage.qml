@@ -6,25 +6,23 @@ Item {
     id: root
     anchors.fill: parent
 
-    // входные данные (приходят из PracticeScreen)
+
     property int rows: 0
     property int columns: 0
     property var costMatrix: []
     property var supply: []
     property var demand: []
 
-    // локальная "новая" матрица этапа 3 (НЕ связана с входными массивами)
+
+    property int balanceWho: -1
+    property int balanceVolume: 0
+
+
     property int localRows: 0
     property int localCols: 0
     property var localCost: []
     property var localSupply: []
     property var localDemand: []
-
-    function zeroStr(x) {
-        if (x === undefined || x === null) return "0"
-        const s = String(x).trim()
-        return (s === "") ? "0" : s
-    }
 
     function rebuildLocal() {
         if (rows <= 0 || columns <= 0) {
@@ -39,43 +37,59 @@ Item {
         localRows = rows
         localCols = columns
 
-        // cost
-        let outCost = []
+
+        let outCost = new Array(rows)
         for (let r = 0; r < rows; r++) {
             let srcRow = (costMatrix && costMatrix[r]) ? costMatrix[r] : []
             let row = new Array(columns)
             for (let c = 0; c < columns; c++) {
-                row[c] = zeroStr(srcRow[c])
+                row[c] = srcRow[c]
             }
-            outCost.push(row)
+            outCost[r] = row
         }
 
-        // supply
         let outSupply = new Array(rows)
-        for (let r = 0; r < rows; r++) {
-            outSupply[r] = zeroStr(supply ? supply[r] : undefined)
-        }
+        for (let r = 0; r < rows; r++) outSupply[r] = supply ? supply[r] : undefined
 
-        // demand
         let outDemand = new Array(columns)
-        for (let c = 0; c < columns; c++) {
-            outDemand[c] = zeroStr(demand ? demand[c] : undefined)
+        for (let c = 0; c < columns; c++) outDemand[c] = demand ? demand[c] : undefined
+
+        if (balanceWho === 0 && balanceVolume > 0) {
+            // фиктивный поставщик (строка)
+            localRows = rows + 1
+            outCost.push(new Array(columns).fill("0"))
+            outSupply.push(String(balanceVolume))
+            // demand без изменений
+        } else if (balanceWho === 1 && balanceVolume > 0) {
+            // фиктивный потребитель (столбец)
+            localCols = columns + 1
+            for (let r = 0; r < rows; r++) outCost[r].push("0")
+            outDemand.push(String(balanceVolume))
+
         }
 
-        // присваиваем НОВЫЕ массивы (чтобы QML точно обновил UI)
+
         localCost = outCost
         localSupply = outSupply
         localDemand = outDemand
     }
 
-    // пересобираем, когда что-то пришло/поменялось
-    onRowsChanged: rebuildLocal()
-    onColumnsChanged: rebuildLocal()
-    onCostMatrixChanged: rebuildLocal()
-    onSupplyChanged: rebuildLocal()
-    onDemandChanged: rebuildLocal()
 
-    Component.onCompleted: rebuildLocal()
+    function rebuildIfVisible() {
+        if (root.visible) rebuildLocal()
+    }
+
+    onVisibleChanged: {
+        if (visible) rebuildLocal()
+    }
+
+    onRowsChanged: rebuildIfVisible()
+    onColumnsChanged: rebuildIfVisible()
+    onCostMatrixChanged: rebuildIfVisible()
+    onSupplyChanged: rebuildIfVisible()
+    onDemandChanged: rebuildIfVisible()
+    onBalanceWhoChanged: rebuildIfVisible()
+    onBalanceVolumeChanged: rebuildIfVisible()
 
     ColumnLayout {
         anchors.fill: parent
@@ -90,7 +104,6 @@ Item {
             Layout.alignment: Qt.AlignHCenter
         }
 
-        // показываем локальную копию (гарантированно заполненную)
         MatrixView {
             id: matrixPreview
             Layout.alignment: Qt.AlignHCenter
