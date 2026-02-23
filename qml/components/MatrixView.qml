@@ -4,9 +4,18 @@ import QtQuick.Layouts
 
 Item {
     id: root
+
     property bool readOnly: false
     property bool autoInit: true
 
+    // ✅ интерактивность ячеек тарифов (клики)
+    property bool interactive: false
+    signal cellClicked(int r, int c)
+    property int selectedRow: -1
+    property int selectedCol: -1
+
+    // ✅ показывать перевозки x_ij (loadMatrix) маленьким бейджем в углу
+    property bool showLoads: false
 
     signal changed()
 
@@ -31,6 +40,10 @@ Item {
         loadMatrix = Array(rows).fill("").map(() => Array(columns).fill(""))
         supply = Array(rows).fill("")
         demand = Array(columns).fill("")
+
+        // сброс выбора
+        selectedRow = -1
+        selectedCol = -1
 
         topHeaderRepeater.model = 0;    topHeaderRepeater.model = columns
         leftLabelsRepeater.model = 0;   leftLabelsRepeater.model = rows
@@ -137,11 +150,14 @@ Item {
                                 readonly property int c: index
 
                                 width: 70; height: 70
-                                color: "#ffffff"
+                                color: (root.interactive && r === root.selectedRow && c === root.selectedCol)
+                                       ? "#dbeafe"
+                                       : "#ffffff"
                                 border.color: "#555"
                                 radius: 6
                                 clip: true
 
+                                // тариф c_ij
                                 TextInput {
                                     anchors.top: parent.top
                                     anchors.left: parent.left
@@ -159,8 +175,9 @@ Item {
                                     inputMethodHints: Qt.ImhDigitsOnly
                                     maximumLength: 6
                                     clip: true
-                                    readOnly: root.readOnly
 
+                                    readOnly: root.readOnly
+                                    activeFocusOnPress: !root.readOnly
 
                                     onTextChanged: {
                                         if (text === "") {
@@ -175,7 +192,49 @@ Item {
                                         }
                                         root.changed()
                                     }
+                                }
 
+                                // ✅ бейдж для x_ij (перевозки) — правый верхний угол
+                                Rectangle {
+                                    id: loadBadge
+                                    width: 26
+                                    height: 18
+                                    radius: 4
+                                    anchors.top: parent.top
+                                    anchors.right: parent.right
+                                    anchors.margins: 4
+                                    z: 5
+
+                                    property string v: {
+                                        if (!root.loadMatrix || !root.loadMatrix[r]) return ""
+                                        const x = root.loadMatrix[r][c]
+                                        if (x === undefined || x === null) return ""
+                                        const s = String(x).trim()
+                                        return s
+                                    }
+
+                                    visible: root.showLoads && v.length > 0
+                                    color: "#11111122"
+                                    border.color: "#11111155"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        font.pixelSize: 12
+                                        color: "#111"
+                                        text: loadBadge.v
+                                    }
+                                }
+
+                                // ✅ клик по ячейке (только если interactive=true)
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: root.interactive
+                                    z: 10
+                                    onClicked: {
+                                        root.selectedRow = r
+                                        root.selectedCol = c
+                                        root.cellClicked(r, c)
+                                    }
                                 }
                             }
                         }
@@ -207,7 +266,7 @@ Item {
                                 clip: true
 
                                 readOnly: root.readOnly
-
+                                activeFocusOnPress: !root.readOnly
 
                                 onTextChanged: {
                                     if (text === "") {
@@ -222,8 +281,6 @@ Item {
                                     }
                                     root.changed()
                                 }
-
-
                             }
                         }
                     }
@@ -261,7 +318,7 @@ Item {
                                 clip: true
 
                                 readOnly: root.readOnly
-
+                                activeFocusOnPress: !root.readOnly
 
                                 onTextChanged: {
                                     if (text === "") {
@@ -276,7 +333,6 @@ Item {
                                     }
                                     root.changed()
                                 }
-
                             }
                         }
                     }
@@ -291,7 +347,6 @@ Item {
         if (autoInit)
             resizeAndReset(rows, columns)
     }
-
 
     function isComplete() {
         for (let r = 0; r < rows; r++) {
@@ -320,6 +375,7 @@ Item {
             demand[c] = String(Math.floor(Math.random() * 50) + 10)
         }
 
+        // “пинки” для обновления
         costMatrix = costMatrix.map(row => row.slice())
         supply = supply.slice()
         demand = demand.slice()
