@@ -26,7 +26,7 @@ Item {
     property var localLoad: []   // x_ij в уголке
 
     // ===== логика минимального тарифа =====
-    // 0 выбрать клетку, 1 ввести объём, 2 вычеркнуть
+    // 0 выбрать клетку, 1 ввести объём, 2 вычеркнуть, 3 посчитать стоимость
     property int phase: 0
     property int selR: -1
     property int selC: -1
@@ -39,6 +39,14 @@ Item {
     property var closedRows: []   // bool
     property var closedCols: []
 
+    // ===== стоимость плана =====
+    property string totalCostText: ""
+    property int expectedTotalCost: 0
+    property string costErrorText: ""
+
+    // ✅ сигнал вверх (в PracticeScreen)
+    signal stage3Completed(int finalRows, int finalCols, var finalCost, var finalSupply, var finalDemand, var finalLoad, int totalCost)
+
     function toInt(x) {
         const n = Number(String(x ?? "").trim())
         return Number.isFinite(n) ? n : 0
@@ -50,6 +58,10 @@ Item {
             localCost = []; localSupply = []; localDemand = []; localLoad = []
             remSupply = []; remDemand = []; closedRows = []; closedCols = []
             phase = 0; selR = -1; selC = -1
+            amountText = ""
+            totalCostText = ""
+            expectedTotalCost = 0
+            costErrorText = ""
             return
         }
 
@@ -114,6 +126,11 @@ Item {
         amountText = ""
         errorText = ""
         hintText = "Шаг 1: выбери ячейку с минимальным тарифом среди доступных."
+
+        // reset стоимости
+        totalCostText = ""
+        expectedTotalCost = 0
+        costErrorText = ""
     }
 
     function rebuildIfVisible() { if (root.visible) rebuildLocal() }
@@ -222,7 +239,6 @@ Item {
         const rowZero = remSupply[selR] === 0
         const colZero = remDemand[selC] === 0
 
-        // проверка выбора (3.3)
         if (mode === "row") {
             if (!rowZero) { errorText = "Ошибка (3.3): строку нельзя вычеркнуть (запас не 0)."; return }
             closedRows[selR] = true
@@ -239,12 +255,67 @@ Item {
         closedRows = closedRows.slice()
         closedCols = closedCols.slice()
 
-        // следующий шаг
+        // если план уже полностью построен -> переходим к подсчёту стоимости
+        if (isFinalStep()) {
+            phase = 3
+            selR = -1
+            selC = -1
+            amountText = ""
+            hintText = "План построен. Посчитай суммарную стоимость перевозок и введи ответ справа."
+            expectedTotalCost = calcTotalCost()
+            totalCostText = ""
+            costErrorText = ""
+            return
+        }
+
+        // иначе следующий шаг
         phase = 0
         selR = -1
         selC = -1
         amountText = ""
         hintText = "Шаг 1: выбери следующую ячейку с минимальным тарифом."
+    }
+
+    function calcTotalCost() {
+        let sum = 0
+        for (let r = 0; r < localRows; r++) {
+            for (let c = 0; c < localCols; c++) {
+                const x = Number(String(localLoad[r][c] ?? "").trim())
+                if (!Number.isFinite(x) || x <= 0) continue
+                const cost = Number(String(localCost[r][c] ?? "").trim())
+                if (!Number.isFinite(cost)) return NaN
+                sum += x * cost
+            }
+        }
+        return Math.trunc(sum)
+    }
+
+    function checkTotalCost() {
+        costErrorText = ""
+        if (phase !== 3) return
+
+        const user = Number(String(totalCostText).trim())
+        if (!Number.isFinite(user) || user < 0) {
+            costErrorText = "Введите корректное число."
+            return
+        }
+        if (user !== expectedTotalCost) {
+            costErrorText = "Неверно. Попробуй ещё раз."
+            return
+        }
+
+        // ✅ правильный ответ -> отдаём план вверх и переходим на этап 4
+        root.stage3Completed(
+            localRows, localCols,
+            localCost,
+            // исходные (не остатки): восстановим из начальных supply/demand при rebuildLocal
+            // здесь проще передать сумму: для этапа 4 достаточно матрицы затрат + плана,
+            // но передадим текущие "нулевые" localSupply/localDemand тоже, чтобы размерности совпали
+            // (этап 4 ты всё равно сделаешь readOnly и будешь работать с plan)
+            localSupply, localDemand,
+            localLoad,
+            expectedTotalCost
+        )
     }
 
     RowLayout {
@@ -267,7 +338,7 @@ Item {
                 id: matrixPreview
                 Layout.alignment: Qt.AlignHCenter
                 readOnly: true
-                interactive: true
+                interactive: (phase === 0)   // клики только на выборе клетки
                 showLoads: true
                 autoInit: false
 
@@ -302,11 +373,7 @@ Item {
                 anchors.margins: 12
                 spacing: 10
 
-                Text {
-                    text: "Панель шага"
-                    font.pixelSize: 16
-                    color: "#111"
-                }
+                Text { text: "Панель шага"; font.pixelSize: 16; color: "#111" }
 
                 Text {
                     Layout.fillWidth: true
@@ -315,7 +382,8 @@ Item {
                     text: {
                         if (phase === 0) return "1) Выбери клетку с минимальным тарифом."
                         if (phase === 1) return "2) Введи объём перевозки."
-                        return "3) Вычеркни поставщика/потребителя."
+                        if (phase === 2) return "3) Вычеркни поставщика/потребителя."
+                        return "4) Посчитай суммарную стоимость перевозок."
                     }
                 }
 
@@ -327,6 +395,7 @@ Item {
                     text: (selR >= 0)
                           ? ("Выбрано: (" + (selR+1) + "," + (selC+1) + "), тариф=" + localCost[selR][selC])
                           : "Выбрано: —"
+                    visible: phase !== 3
                 }
 
                 TextField {
@@ -336,6 +405,7 @@ Item {
                     enabled: phase === 1
                     text: root.amountText
                     onTextChanged: root.amountText = text
+                    visible: phase !== 3
                 }
 
                 Button {
@@ -343,28 +413,20 @@ Item {
                     text: "Подтвердить объём"
                     enabled: phase === 1
                     onClicked: root.confirmAmount()
+                    visible: phase !== 3
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: "#eeeeee" }
+                Rectangle { Layout.fillWidth: true; height: 1; color: "#eeeeee"; visible: phase !== 3 }
 
-                Text { text: "Вычеркнуть:"; color: "#111" }
+                Text { text: "Вычеркнуть:"; color: "#111"; visible: phase === 2 }
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
+                    visible: phase === 2
 
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Поставщика"
-                        enabled: phase === 2
-                        onClicked: root.crossOut("row")
-                    }
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Потребителя"
-                        enabled: phase === 2
-                        onClicked: root.crossOut("col")
-                    }
+                    Button { Layout.fillWidth: true; text: "Поставщика"; enabled: phase === 2; onClicked: root.crossOut("row") }
+                    Button { Layout.fillWidth: true; text: "Потребителя"; enabled: phase === 2; onClicked: root.crossOut("col") }
                 }
 
                 Button {
@@ -372,6 +434,7 @@ Item {
                     text: "Оба"
                     enabled: phase === 2
                     onClicked: root.crossOut("both")
+                    visible: phase === 2
                 }
 
                 Text {
@@ -379,7 +442,43 @@ Item {
                     wrapMode: Text.WordWrap
                     color: "#b91c1c"
                     text: errorText
-                    visible: errorText.length > 0
+                    visible: errorText.length > 0 && phase !== 3
+                }
+
+                // ===== блок стоимости плана =====
+                Rectangle { Layout.fillWidth: true; height: 1; color: "#eeeeee"; visible: phase === 3 }
+
+                Text {
+                    text: "Суммарная стоимость"
+                    font.pixelSize: 14
+                    color: "#111"
+                    visible: phase === 3
+                }
+
+                TextField {
+                    Layout.fillWidth: true
+                    placeholderText: "Введите стоимость"
+                    inputMethodHints: Qt.ImhDigitsOnly
+                    enabled: phase === 3
+                    text: root.totalCostText
+                    onTextChanged: root.totalCostText = text
+                    visible: phase === 3
+                }
+
+                Button {
+                    Layout.fillWidth: true
+                    text: "Проверить и перейти к этапу 4"
+                    enabled: phase === 3
+                    onClicked: root.checkTotalCost()
+                    visible: phase === 3
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    color: "#b91c1c"
+                    text: costErrorText
+                    visible: phase === 3 && costErrorText.length > 0
                 }
 
                 Item { Layout.fillHeight: true }

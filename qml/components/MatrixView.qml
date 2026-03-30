@@ -8,14 +8,15 @@ Item {
     property bool readOnly: false
     property bool autoInit: true
 
-    // ✅ интерактивность ячеек тарифов (клики)
     property bool interactive: false
     signal cellClicked(int r, int c)
     property int selectedRow: -1
     property int selectedCol: -1
 
-    // ✅ показывать перевозки x_ij (loadMatrix) маленьким бейджем в углу
     property bool showLoads: false
+
+    property bool showMarks: false
+    property var markMatrix: []
 
     signal changed()
 
@@ -41,7 +42,6 @@ Item {
         supply = Array(rows).fill("")
         demand = Array(columns).fill("")
 
-        // сброс выбора
         selectedRow = -1
         selectedCol = -1
 
@@ -57,7 +57,6 @@ Item {
         id: content
         spacing: 6
 
-        // Верхний заголовок
         Row {
             spacing: 4
 
@@ -96,7 +95,6 @@ Item {
         Row {
             spacing: 4
 
-            // Левый столбец B1..Bm + "Потреб."
             Column {
                 spacing: 4
 
@@ -130,7 +128,6 @@ Item {
                 }
             }
 
-            // Центральная матрица + нижний demand
             Column {
                 spacing: 4
 
@@ -150,14 +147,13 @@ Item {
                                 readonly property int c: index
 
                                 width: 70; height: 70
-                                color: (root.interactive && r === root.selectedRow && c === root.selectedCol)
-                                       ? "#dbeafe"
+                                color: (r === root.selectedRow && c === root.selectedCol)
+                                       ? "#dcfce7"
                                        : "#ffffff"
                                 border.color: "#555"
                                 radius: 6
                                 clip: true
 
-                                // тариф c_ij
                                 TextInput {
                                     anchors.top: parent.top
                                     anchors.left: parent.left
@@ -180,6 +176,8 @@ Item {
                                     activeFocusOnPress: !root.readOnly
 
                                     onTextChanged: {
+                                        if (root.readOnly) return
+
                                         if (text === "") {
                                             costMatrix[r][c] = ""
                                             costMatrix = costMatrix
@@ -194,9 +192,8 @@ Item {
                                     }
                                 }
 
-                                // ✅ бейдж для x_ij (перевозки) — правый верхний угол
+                                // x_ij (перевозки) — правый верхний угол
                                 Rectangle {
-                                    id: loadBadge
                                     width: 26
                                     height: 18
                                     radius: 4
@@ -209,8 +206,7 @@ Item {
                                         if (!root.loadMatrix || !root.loadMatrix[r]) return ""
                                         const x = root.loadMatrix[r][c]
                                         if (x === undefined || x === null) return ""
-                                        const s = String(x).trim()
-                                        return s
+                                        return String(x).trim()
                                     }
 
                                     visible: root.showLoads && v.length > 0
@@ -221,11 +217,39 @@ Item {
                                         anchors.centerIn: parent
                                         font.pixelSize: 12
                                         color: "#111"
-                                        text: loadBadge.v
+                                        text: parent.v
                                     }
                                 }
 
-                                // ✅ клик по ячейке (только если interactive=true)
+                                // метка цикла (+/-/r) — правый нижний угол
+                                Rectangle {
+                                    width: 22
+                                    height: 18
+                                    radius: 4
+                                    anchors.bottom: parent.bottom
+                                    anchors.right: parent.right
+                                    anchors.margins: 4
+                                    z: 6
+
+                                    property string m: {
+                                        if (!root.markMatrix || !root.markMatrix[r]) return ""
+                                        const t = root.markMatrix[r][c]
+                                        if (t === undefined || t === null) return ""
+                                        return String(t).trim()
+                                    }
+
+                                    visible: root.showMarks && m.length > 0
+                                    color: "#16a34a22"
+                                    border.color: "#16a34a55"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        font.pixelSize: 12
+                                        color: "#111"
+                                        text: parent.m
+                                    }
+                                }
+
                                 MouseArea {
                                     anchors.fill: parent
                                     enabled: root.interactive
@@ -239,7 +263,6 @@ Item {
                             }
                         }
 
-                        // Запасы (supply)
                         Rectangle {
                             width: 70; height: 70
                             color: "#fff8e6"
@@ -269,6 +292,8 @@ Item {
                                 activeFocusOnPress: !root.readOnly
 
                                 onTextChanged: {
+                                    if (root.readOnly) return
+
                                     if (text === "") {
                                         supply[r] = ""
                                         supply = supply
@@ -286,7 +311,6 @@ Item {
                     }
                 }
 
-                // Нижний ряд — спрос (demand)
                 Row {
                     spacing: 4
 
@@ -321,6 +345,8 @@ Item {
                                 activeFocusOnPress: !root.readOnly
 
                                 onTextChanged: {
+                                    if (root.readOnly) return
+
                                     if (text === "") {
                                         demand[index] = ""
                                         demand = demand

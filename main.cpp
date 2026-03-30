@@ -2,10 +2,17 @@
 #include <QQmlApplicationEngine>
 #include <QCoreApplication>
 #include <QDir>
+#include <QtQml/qqml.h>
+
+#include "theoryController.h"
+
+
 
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+
+    qmlRegisterType<TheoryController>("App.Theory", 1, 0, "TheoryController");
 
     QQmlApplicationEngine engine;
 
@@ -15,7 +22,6 @@ int main(int argc, char *argv[])
         &app,
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
-
 
     QString exeDir = QCoreApplication::applicationDirPath();
     QString projectRoot = QDir(exeDir + "/../..").absolutePath();

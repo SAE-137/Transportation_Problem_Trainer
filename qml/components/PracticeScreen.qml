@@ -33,6 +33,8 @@ Item {
     property int pendingBalanceWho: -1
     property int pendingBalanceVolume: 0
 
+    property var workLoad: []
+
     function copy2D(a) { return a.map(row => row.slice()) }
     function copy1D(a) { return a.slice() }
 
@@ -239,10 +241,29 @@ Item {
 
                     balanceWho: root.pendingBalanceWho
                     balanceVolume: root.pendingBalanceVolume
+
+                    onStage3Completed: (finalRows, finalCols, finalCost, finalSupply, finalDemand, finalLoad, totalCost) => {
+                        // сохраняем, чтобы этап 4 видел план
+                        root.workRows = finalRows
+                        root.workCols = finalCols
+                        root.workCost = root.copy2D(finalCost)
+                        root.workSupply = root.copy1D(finalSupply)
+                        root.workDemand = root.copy1D(finalDemand)
+                        root.workLoad = root.copy2D(finalLoad)
+
+                        root.freezeStage(3)
+                        root.unlockAndGo(4)
+                    }
                 }
 
-                // ---- Этап 4 (позже) ----
-                Item { } // заглушка, чтобы StackLayout имел 5 страниц
+                PotentialsPage {
+                    rows: root.workRows
+                    columns: root.workCols
+                    costMatrix: root.workCost
+                    loadMatrix: root.workLoad
+                    supply: root.workSupply
+                    demand: root.workDemand
+                }
             }
         }
     }

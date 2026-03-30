@@ -103,7 +103,7 @@ ApplicationWindow {
                 text: "Решить"
                 onClicked: {
                     if (screenLoader.item && screenLoader.item.solve) {
-                        //screenLoader.item.solve()
+                        screenLoader.item.solve()
                     } else {
                         console.log("solve не поддерживается на этом экране")
                     }
@@ -114,7 +114,7 @@ ApplicationWindow {
                 text: "Очистить"
                 onClicked: {
                     if (screenLoader.item && screenLoader.item.clear) {
-                        //screenLoader.item.clear()
+                        screenLoader.item.clear()
                     } else {
                         console.log("clear не поддерживается на этом экране")
                     }

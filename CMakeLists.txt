@@ -14,7 +14,7 @@ qt_add_executable(appTransportation_Problem_Trainer
     qml/components/HeaderButton.qml
     qml/components/ActionButton.qml
     qml/components/TabButton.qml
-    qml/Matrix.qml
+
     qml/Main.qml
     qml/components/NumberInput.qml
     qml/components/MatrixView.qml
@@ -25,16 +25,26 @@ qt_add_executable(appTransportation_Problem_Trainer
     qml/components/BalanceCheckPage.qml
     qml/components/BalanceFixPage.qml
     qml/components/MinCostPlanPage.qml
+    qml/components/PotentialsPage.qml
+
+
+    transportproblemstate.h transportproblemstate.cpp
+    theorycontroller.h theorycontroller.cpp
+    balancesolver.h balancesolver.cpp
+    mincostsolver.h mincostsolver.cpp
+    potentialsolver.h potentialsolver.cpp
+    cyclesolver.h cyclesolver.cpp
+    recalculationsolver.h recalculationsolver.cpp
 )
 
 target_sources(appTransportation_Problem_Trainer PRIVATE
-    backend/matrixdata.cpp
-    backend/matrixsolver.cpp
-    backend/studentcontroller.cpp
 
-    backend/matrixdata.h
-    backend/matrixsolver.h
-    backend/studentcontroller.h
+
+
+
+
+
+
 )
 
 target_include_directories(appTransportation_Problem_Trainer PRIVATE
