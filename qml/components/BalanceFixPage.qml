@@ -6,24 +6,34 @@ Item {
     id: root
     anchors.fill: parent
 
-    // Приходят из PracticeScreen (как данные текущего WORK-этапа)
     property int rows: 0
     property int columns: 0
     property var costMatrix: []
     property var supply: []
     property var demand: []
 
-    // ВАЖНО: вместо мутации локальных props, отдаём наружу новый результат
-    // newRows/newCols + новые массивы
-    // who: 0 = добавить поставщика (строка), 1 = добавить потребителя (столбец)
+    // внешний объект уведомления
+    property var errorNotifier: null
+
+    signal balancedYes()
     signal balanceFixPassed(int who, int volume)
-    // UI state
-    property int selectedWho: -1      // 0 = поставщик, 1 = потребитель
+
+    property int selectedWho: -1
     property string volumeText: ""
     property string errorText: ""
+    property bool showFixSection: false
+
+    function notifyError(message) {
+        errorText = message
+
+        if (root.errorNotifier && root.errorNotifier.showError) {
+            root.errorNotifier.showError(message, "Ошибка контроля")
+        }
+    }
 
     function toIntOrNaN(x) {
         if (x === undefined || x === null) return NaN
+        if (typeof x === "number") return x
         const s = String(x).trim()
         if (s === "") return NaN
         const n = Number(s)
@@ -31,223 +41,421 @@ Item {
     }
 
     function sumVector(vec, expectedLen) {
-        if (!vec || vec.length !== expectedLen) return NaN
+        if (!vec || vec.length !== expectedLen)
+            return NaN
+
         let sum = 0
         for (let i = 0; i < expectedLen; i++) {
             const v = toIntOrNaN(vec[i])
-            if (!Number.isFinite(v)) return NaN
+            if (!Number.isFinite(v))
+                return NaN
             sum += v
         }
         return sum
     }
 
-    function expectedAnswer() {
+    function checkBalanced() {
         const sumS = sumVector(supply, rows)
         const sumD = sumVector(demand, columns)
 
-        if (!Number.isFinite(sumS) || !Number.isFinite(sumD)) {
-            return { ok: false, error: "Запасы/потребности заполнены некорректно" }
-        }
-        if (sumS === sumD) {
-            return { ok: false, error: "Задача уже сбалансирована — балансировка не требуется" }
-        }
-        if (sumS < sumD) {
-            return { ok: true, who: 0, volume: (sumD - sumS), sumS: sumS, sumD: sumD }
-        } else {
-            return { ok: true, who: 1, volume: (sumS - sumD), sumS: sumS, sumD: sumD }
+        if (rows <= 0 || columns <= 0)
+            return { ok: false, error: "Неверная размерность матрицы." }
+
+        if (!Number.isFinite(sumS))
+            return { ok: false, error: "Запасы заполнены некорректно." }
+
+        if (!Number.isFinite(sumD))
+            return { ok: false, error: "Потребности заполнены некорректно." }
+
+        return {
+            ok: true,
+            balanced: sumS === sumD,
+            sumS: sumS,
+            sumD: sumD
         }
     }
 
-    function zeroStr(x) {
-        // пустое/undefined -> "0"
-        if (x === undefined || x === null) return "0"
-        const s = String(x).trim()
-        return (s === "") ? "0" : s
-    }
+    function expectedAnswer() {
+        const res = checkBalanced()
+        if (!res.ok)
+            return res
 
-    function normalizeCost(cost, rCount, cCount) {
-        // делаем "прямоугольник" rCount x cCount, заполняем дырки нулями
-        let out = []
-        for (let r = 0; r < rCount; r++) {
-            let row = (cost && cost[r]) ? cost[r].slice() : []
-            while (row.length < cCount) row.push("0")
-            if (row.length > cCount) row = row.slice(0, cCount)
-            for (let c = 0; c < cCount; c++) row[c] = zeroStr(row[c])
-            out.push(row)
-        }
-        return out
-    }
-
-    function buildBalancedResult(who, volume) {
-        // 1) сначала нормализуем текущую матрицу до rows x columns
-        let baseRows = rows
-        let baseCols = columns
-        let newCost = normalizeCost(costMatrix, baseRows, baseCols)
-        let newSupply = (supply || []).slice()
-        let newDemand = (demand || []).slice()
-
-        // нормализуем supply/demand (дырки -> "0")
-        while (newSupply.length < baseRows) newSupply.push("0")
-        while (newDemand.length < baseCols) newDemand.push("0")
-        for (let r = 0; r < baseRows; r++) newSupply[r] = zeroStr(newSupply[r])
-        for (let c = 0; c < baseCols; c++) newDemand[c] = zeroStr(newDemand[c])
-
-        let newRows = baseRows
-        let newCols = baseCols
-
-        if (who === 0) {
-            // добавить фиктивного поставщика (строка)
-            newRows += 1
-            const newRow = Array(baseCols).fill("0")   // тарифы = 0
-            newCost.push(newRow)
-            newSupply.push(String(volume))             // запас = разность
-            // demand без изменений
-        } else {
-            // добавить фиктивного потребителя (столбец)
-            newCols += 1
-            for (let r = 0; r < baseRows; r++) {
-                newCost[r].push("0")                   // тарифы = 0
+        if (res.balanced) {
+            return {
+                ok: false,
+                error: "Задача уже сбалансирована — балансировка не требуется."
             }
-            newDemand.push(String(volume))             // потребность = разность
-            // supply без изменений
         }
 
-        // 2) финальная нормализация под новый размер (на всякий случай)
-        newCost = normalizeCost(newCost, newRows, newCols)
-        while (newSupply.length < newRows) newSupply.push("0")
-        while (newDemand.length < newCols) newDemand.push("0")
+        if (res.sumS < res.sumD) {
+            return {
+                ok: true,
+                who: 0, // добавить поставщика
+                volume: res.sumD - res.sumS,
+                sumS: res.sumS,
+                sumD: res.sumD
+            }
+        }
 
-        return { newRows, newCols, newCost, newSupply, newDemand }
+        return {
+            ok: true,
+            who: 1, // добавить потребителя
+            volume: res.sumS - res.sumD,
+            sumS: res.sumS,
+            sumD: res.sumD
+        }
     }
 
+    function resetFixInputs() {
+        selectedWho = -1
+        volumeText = ""
+    }
 
+    function resetPageState() {
+        showFixSection = false
+        errorText = ""
+        resetFixInputs()
+    }
 
+    function handleAnswer(userSaysBalanced) {
+        errorText = ""
 
+        const res = checkBalanced()
+        if (!res.ok) {
+            notifyError(res.error)
+            return
+        }
+
+        if (userSaysBalanced && res.balanced) {
+            showFixSection = false
+            resetFixInputs()
+            root.balancedYes()
+            return
+        }
+
+        if (!userSaysBalanced && !res.balanced) {
+            showFixSection = true
+            resetFixInputs()
+            return
+        }
+
+        showFixSection = false
+        resetFixInputs()
+
+        if (userSaysBalanced && !res.balanced) {
+            notifyError("Ошибка (1): неверный ответ. Задача не сбалансирована.")
+        } else if (!userSaysBalanced && res.balanced) {
+            notifyError("Ошибка (1): неверный ответ. Задача сбалансирована.")
+        }
+    }
 
     function checkAndBalance() {
         errorText = ""
 
         const exp = expectedAnswer()
         if (!exp.ok) {
-            errorText = exp.error
-            console.log("Ошибка:", exp.error)
+            notifyError(exp.error)
+            return
+        }
+
+        if (!showFixSection) {
+            notifyError("Сначала нужно правильно определить, что задача не сбалансирована.")
             return
         }
 
         if (selectedWho !== 0 && selectedWho !== 1) {
-            errorText = "Выберите, кого добавить: поставщика или потребителя."
+            notifyError("Выберите, кого добавить: поставщика или потребителя.")
             return
         }
 
         const userVol = toIntOrNaN(volumeText)
         if (!Number.isFinite(userVol) || userVol < 0) {
-            errorText = "Введите корректный объём (целое число ≥ 0)."
+            notifyError("Введите корректный объём.")
             return
         }
 
-        // Проверка (2.1) — кого добавить
         if (selectedWho !== exp.who) {
-            errorText = "Ошибка (2.1): выбран неверный тип (нужно добавить " +
-                        (exp.who === 0 ? "поставщика" : "потребителя") + ")."
-            console.log(errorText, "Σзапасов=", exp.sumS, "Σпотребностей=", exp.sumD)
+            notifyError("Ошибка (2.1): выбран неверный тип. Нужно добавить " +
+                        (exp.who === 0 ? "поставщика." : "потребителя."))
             return
         }
 
-        // Проверка (2.2) — объём
         if (userVol !== exp.volume) {
-            errorText = "Ошибка (2.2): неверный объём (должно быть " + exp.volume + ")."
-            console.log(errorText, "Σзапасов=", exp.sumS, "Σпотребностей=", exp.sumD)
+            notifyError("Ошибка (2.2): неверный объём. Должно быть " + exp.volume + ".")
             return
         }
 
-        // ✅ Всё верно -> строим результат и отдаём наружу
         root.balanceFixPassed(exp.who, exp.volume)
-
-        console.log("Балансировка выполнена: добавлен " +
-                    (exp.who === 0 ? "фиктивный поставщик" : "фиктивный потребитель") +
-                    " с объёмом " + exp.volume + ". Тарифы = 0.")
-
-        root.balancedMatrixReady(res.newRows, res.newCols, res.newCost, res.newSupply, res.newDemand)
     }
 
-    ColumnLayout {
+    onRowsChanged: resetPageState()
+    onColumnsChanged: resetPageState()
+    onCostMatrixChanged: resetPageState()
+    onSupplyChanged: resetPageState()
+    onDemandChanged: resetPageState()
+
+    ScrollView {
+        id: pageScroll
         anchors.fill: parent
-        spacing: 14
+        clip: true
 
-        // Матрица сверху (только просмотр)
-        MatrixView {
-            id: matrixPreview
-            Layout.alignment: Qt.AlignHCenter
-            readOnly: true
-            autoInit: false
+        contentWidth: pageContent.width
+        contentHeight: pageContent.height
 
-            rows: root.rows
-            columns: root.columns
-            costMatrix: root.costMatrix
-            supply: root.supply
-            demand: root.demand
-        }
+        ScrollBar.horizontal.policy: contentWidth > availableWidth
+                                     ? ScrollBar.AsNeeded
+                                     : ScrollBar.AlwaysOff
 
-        Text {
-            text: "Этап 2: Балансировка"
-            font.pixelSize: 20
-            color: "#111"
-            Layout.alignment: Qt.AlignHCenter
-        }
+        ScrollBar.vertical.policy: contentHeight > availableHeight
+                                   ? ScrollBar.AsNeeded
+                                   : ScrollBar.AlwaysOff
 
-        Text {
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            color: "#444"
-            font.pixelSize: 14
-            text: "Вопрос: кого нужно добавить для балансировки (поставщика или потребителя) и с каким запасом/потребностью?"
-        }
+        Item {
+            id: pageContent
 
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: 16
+            readonly property int sidePadding: 16
+            readonly property int cardMaxWidth: 760
+            readonly property int sectionWidth: Math.min(width - sidePadding * 2, cardMaxWidth)
 
-            RadioButton {
-                text: "Добавить поставщика"
-                checked: root.selectedWho === 0
-                onClicked: root.selectedWho = 0
+            width: Math.max(pageScroll.availableWidth, matrixPreview.implicitWidth + 32, cardMaxWidth + 32)
+            height: contentColumn.implicitHeight + 32
+
+            ColumnLayout {
+                id: contentColumn
+                width: pageContent.width - 32
+                anchors.top: parent.top
+                anchors.topMargin: 16
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 18
+
+                MatrixView {
+                    id: matrixPreview
+                    Layout.alignment: Qt.AlignHCenter
+                    readOnly: true
+                    autoInit: false
+
+                    rows: root.rows
+                    columns: root.columns
+                    costMatrix: root.costMatrix
+                    supply: root.supply
+                    demand: root.demand
+                }
+
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Этап 1: Баланс / балансировка"
+                    font.pixelSize: 20
+                    font.bold: true
+                    color: "#111"
+                }
+
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: pageContent.sectionWidth
+                    wrapMode: Text.WordWrap
+                    horizontalAlignment: Text.AlignHCenter
+                    color: "#444"
+                    font.pixelSize: 14
+                    text: !root.showFixSection
+                          ? "Сначала определи, сбалансирована ли транспортная задача."
+                          : "Теперь выполни балансировку: укажи, кого нужно добавить и с каким объёмом."
+                }
+
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: pageContent.sectionWidth
+                    visible: !root.showFixSection
+
+                    radius: 14
+                    color: "#ffffff"
+                    border.color: "#e5e5e5"
+                    implicitHeight: questionContent.implicitHeight + 32
+
+                    ColumnLayout {
+                        id: questionContent
+                        width: parent.width - 32
+                        anchors.top: parent.top
+                        anchors.topMargin: 16
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 14
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "Сбалансирована ли транспортная задача?"
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: "#111"
+                        }
+
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: 12
+
+                            Button {
+                                implicitWidth: 72
+                                implicitHeight: 42
+                                text: "Да"
+
+                                background: Rectangle {
+                                    radius: 10
+                                    color: "#22c55e"
+                                }
+
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: "white"
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                onClicked: handleAnswer(true)
+                            }
+
+                            Button {
+                                implicitWidth: 72
+                                implicitHeight: 42
+                                text: "Нет"
+
+                                background: Rectangle {
+                                    radius: 10
+                                    color: "#ef4444"
+                                }
+
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: "white"
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                onClicked: handleAnswer(false)
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: parent.width
+                            implicitHeight: hintText.implicitHeight + 20
+                            radius: 10
+                            color: "#f8fafc"
+                            border.color: "#e2e8f0"
+
+                            Text {
+                                id: hintText
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                text: "Подсказка: сумма запасов должна равняться сумме потребностей."
+                                wrapMode: Text.WordWrap
+                                horizontalAlignment: Text.AlignHCenter
+                                color: "#475569"
+                                font.pixelSize: 14
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: pageContent.sectionWidth
+                    visible: root.showFixSection
+
+                    radius: 14
+                    color: "#ffffff"
+                    border.color: "#e5e5e5"
+                    implicitHeight: fixContent.implicitHeight + 32
+
+                    ColumnLayout {
+                        id: fixContent
+                        width: parent.width - 32
+                        anchors.top: parent.top
+                        anchors.topMargin: 16
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 14
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "Балансировка"
+                            font.pixelSize: 18
+                            font.bold: true
+                            color: "#111"
+                        }
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: parent.width
+                            wrapMode: Text.WordWrap
+                            horizontalAlignment: Text.AlignHCenter
+                            color: "#444"
+                            font.pixelSize: 14
+                            text: "Выбери, кого нужно добавить для балансировки, и укажи правильный объём."
+                        }
+
+                        Rectangle {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: parent.width
+                            implicitHeight: radioBlock.implicitHeight + 20
+                            radius: 10
+                            color: "#faf8f4"
+                            border.color: "#ece5d9"
+
+                            ColumnLayout {
+                                id: radioBlock
+                                width: parent.width - 20
+                                anchors.top: parent.top
+                                anchors.topMargin: 10
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                spacing: 10
+
+                                RadioButton {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: "Добавить поставщика"
+                                    checked: root.selectedWho === 0
+                                    onClicked: root.selectedWho = 0
+                                }
+
+                                RadioButton {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: "Добавить потребителя"
+                                    checked: root.selectedWho === 1
+                                    onClicked: root.selectedWho = 1
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: 10
+
+                            Text {
+                                text: "Объём:"
+                                color: "#111"
+                                font.pixelSize: 14
+                            }
+
+                            TextField {
+                                width: 180
+                                placeholderText: "например, 25"
+                                text: root.volumeText
+                                inputMethodHints: Qt.ImhDigitsOnly
+                                onTextChanged: root.volumeText = text
+                            }
+                        }
+
+                        Button {
+                            Layout.alignment: Qt.AlignHCenter
+                            implicitWidth: 270
+                            implicitHeight: 44
+                            text: "Проверить ответ и перейти дальше"
+
+                            onClicked: checkAndBalance()
+                        }
+                    }
+                }
             }
-            RadioButton {
-                text: "Добавить потребителя"
-                checked: root.selectedWho === 1
-                onClicked: root.selectedWho = 1
-            }
         }
-
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: 10
-
-            Text { text: "Объём:"; color: "#111" }
-
-            TextField {
-                width: 160
-                placeholderText: "например, 25"
-                text: root.volumeText
-                inputMethodHints: Qt.ImhDigitsOnly
-                onTextChanged: root.volumeText = text
-            }
-        }
-
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            color: "#b91c1c"
-            font.pixelSize: 14
-            text: root.errorText
-            visible: root.errorText.length > 0
-        }
-
-        Button {
-            Layout.alignment: Qt.AlignHCenter
-            text: "Проверить ответ и сбалансировать"
-            onClicked: checkAndBalance()
-        }
-
-        Item { Layout.fillHeight: true }
     }
 }

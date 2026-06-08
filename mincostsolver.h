@@ -41,6 +41,18 @@ public:
 private:
     bool hasOpenCells(const QVector<int>& supply, const QVector<int>& demand) const;
     QVector<QVector<QString>> makeStringMatrix(int rows, int cols) const;
+
+    bool isBasisCell(const QVector<QVector<QString>>& loadMatrix, int row, int col) const;
+    int countBasisCells(const QVector<QVector<QString>>& loadMatrix) const;
+    bool createsCycle(const QVector<QVector<QString>>& loadMatrix, int addRow, int addCol) const;
+
+    bool chooseZeroBasisCell(const QVector<QVector<QString>>& loadMatrix,
+                             const QVector<int>& supplyLeft,
+                             const QVector<int>& demandLeft,
+                             int chosenRow,
+                             int chosenCol,
+                             int& zeroRow,
+                             int& zeroCol) const;
 };
 
 #endif // MINCOSTSOLVER_H

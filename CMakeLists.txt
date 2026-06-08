@@ -35,6 +35,15 @@ qt_add_executable(appTransportation_Problem_Trainer
     potentialsolver.h potentialsolver.cpp
     cyclesolver.h cyclesolver.cpp
     recalculationsolver.h recalculationsolver.cpp
+    qml/components/MatrixSnapshotView.qml
+    qml/components/StepViewer.qml
+    qml/components/CalculationBlock.qml
+    qml/components/MinCostStepPanel.qml
+    qml/components/HistoryDrawer.qml
+    qml/components/HistoryMiniMatrix.qml
+    qml/components/SideErrorNotification.qml
+    qml/components/PotentialsStepPanel.qml
+    qml/components/PracticeResultPage.qml
 )
 
 target_sources(appTransportation_Problem_Trainer PRIVATE

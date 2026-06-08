@@ -18,6 +18,11 @@ Item {
     property bool showMarks: false
     property var markMatrix: []
 
+    // Матрица цветов ячеек.
+    // MatrixView сам не решает, какие клетки красить.
+    // Если cellBackgroundMatrix[r][c] задана, ячейка получает этот цвет.
+    property var cellBackgroundMatrix: []
+
     signal changed()
 
     property int rows: 3
@@ -31,24 +36,43 @@ Item {
     implicitWidth: content.implicitWidth
     implicitHeight: content.implicitHeight
 
+    function cellBackgroundAt(r, c) {
+        if (!cellBackgroundMatrix || !cellBackgroundMatrix[r])
+            return ""
+
+        const value = cellBackgroundMatrix[r][c]
+
+        if (value === undefined || value === null)
+            return ""
+
+        return String(value).trim()
+    }
+
     function resizeAndReset(newRows, newColumns) {
-        if (newRows < 1 || newColumns < 1) return;
+        if (newRows < 1 || newColumns < 1)
+            return
 
-        rows = newRows
-        columns = newColumns
+        const newCostMatrix = Array.from({ length: newRows }, function() {
+            return Array.from({ length: newColumns }, function() { return "" })
+        })
 
-        costMatrix = Array(rows).fill("").map(() => Array(columns).fill(""))
-        loadMatrix = Array(rows).fill("").map(() => Array(columns).fill(""))
-        supply = Array(rows).fill("")
-        demand = Array(columns).fill("")
+        const newLoadMatrix = Array.from({ length: newRows }, function() {
+            return Array.from({ length: newColumns }, function() { return "" })
+        })
+
+        const newSupply = Array.from({ length: newRows }, function() { return "" })
+        const newDemand = Array.from({ length: newColumns }, function() { return "" })
 
         selectedRow = -1
         selectedCol = -1
 
-        topHeaderRepeater.model = 0;    topHeaderRepeater.model = columns
-        leftLabelsRepeater.model = 0;   leftLabelsRepeater.model = rows
-        matrixRepeater.model = 0;       matrixRepeater.model = rows
-        bottomDemandRepeater.model = 0; bottomDemandRepeater.model = columns
+        costMatrix = newCostMatrix
+        loadMatrix = newLoadMatrix
+        supply = newSupply
+        demand = newDemand
+
+        rows = newRows
+        columns = newColumns
 
         root.changed()
     }
@@ -60,29 +84,40 @@ Item {
         Row {
             spacing: 4
 
-            Rectangle { width: 70; height: 40; color: "#e8e8e8"; border.color: "#666"; radius: 4 }
+            Rectangle {
+                width: 70
+                height: 40
+                color: "#e8e8e8"
+                border.color: "#666"
+                radius: 4
+            }
 
             Repeater {
                 id: topHeaderRepeater
                 model: columns
+
                 delegate: Rectangle {
-                    width: 70; height: 40
+                    width: 70
+                    height: 40
                     color: "#e8e8e8"
                     border.color: "#666"
                     radius: 4
+
                     Text {
                         anchors.centerIn: parent
                         font.pixelSize: 16
-                        text: "A" + (index + 1)
+                        text: "B" + (index + 1)
                     }
                 }
             }
 
             Rectangle {
-                width: 70; height: 40
+                width: 70
+                height: 40
                 color: "#f7f7f7"
                 border.color: "#666"
                 radius: 4
+
                 Text {
                     anchors.centerIn: parent
                     font.pixelSize: 12
@@ -101,24 +136,29 @@ Item {
                 Repeater {
                     id: leftLabelsRepeater
                     model: rows
+
                     delegate: Rectangle {
-                        width: 70; height: 70
+                        width: 70
+                        height: 70
                         color: "#e8e8e8"
                         border.color: "#666"
                         radius: 4
+
                         Text {
                             anchors.centerIn: parent
                             font.pixelSize: 16
-                            text: "B" + (index + 1)
+                            text: "A" + (index + 1)
                         }
                     }
                 }
 
                 Rectangle {
-                    width: 70; height: 70
+                    width: 70
+                    height: 70
                     color: "#f7f7f7"
                     border.color: "#666"
                     radius: 4
+
                     Text {
                         anchors.centerIn: parent
                         font.pixelSize: 13
@@ -142,15 +182,28 @@ Item {
 
                         Repeater {
                             model: columns
+
                             delegate: Rectangle {
                                 readonly property int r: rowRow.rowIndex
                                 readonly property int c: index
+                                readonly property string customBackground: root.cellBackgroundAt(r, c)
 
-                                width: 70; height: 70
-                                color: (r === root.selectedRow && c === root.selectedCol)
-                                       ? "#dcfce7"
-                                       : "#ffffff"
+                                width: 70
+                                height: 70
+
+                                color: {
+                                    if (customBackground.length > 0)
+                                        return customBackground
+
+                                    if (r === root.selectedRow && c === root.selectedCol)
+                                        return "#dcfce7"
+
+                                    return "#ffffff"
+                                }
+
                                 border.color: "#555"
+                                border.width: 1
+
                                 radius: 6
                                 clip: true
 
@@ -166,7 +219,13 @@ Item {
                                     horizontalAlignment: Text.AlignLeft
                                     verticalAlignment: Text.AlignTop
 
-                                    text: costMatrix[r][c]
+                                    text: (root.costMatrix
+                                           && root.costMatrix[r]
+                                           && root.costMatrix[r][c] !== undefined
+                                           && root.costMatrix[r][c] !== null)
+                                          ? String(root.costMatrix[r][c])
+                                          : ""
+
                                     validator: IntValidator { bottom: 0 }
                                     inputMethodHints: Qt.ImhDigitsOnly
                                     maximumLength: 6
@@ -175,24 +234,29 @@ Item {
                                     readOnly: root.readOnly
                                     activeFocusOnPress: !root.readOnly
 
-                                    onTextChanged: {
-                                        if (root.readOnly) return
+                                    onTextEdited: {
+                                        if (root.readOnly)
+                                            return
+
+                                        if (!root.costMatrix || !root.costMatrix[r])
+                                            return
 
                                         if (text === "") {
-                                            costMatrix[r][c] = ""
-                                            costMatrix = costMatrix
-                                            root.changed()
+                                            root.costMatrix[r][c] = ""
+                                        } else if (acceptableInput) {
+                                            root.costMatrix[r][c] = text
+                                        } else {
                                             return
                                         }
-                                        if (acceptableInput) {
-                                            costMatrix[r][c] = text
-                                            costMatrix = costMatrix
-                                        }
+
+                                        root.costMatrix = root.costMatrix.map(function(row) {
+                                            return row.slice()
+                                        })
+
                                         root.changed()
                                     }
                                 }
 
-                                // x_ij (перевозки) — правый верхний угол
                                 Rectangle {
                                     width: 26
                                     height: 18
@@ -203,9 +267,14 @@ Item {
                                     z: 5
 
                                     property string v: {
-                                        if (!root.loadMatrix || !root.loadMatrix[r]) return ""
+                                        if (!root.loadMatrix || !root.loadMatrix[r])
+                                            return ""
+
                                         const x = root.loadMatrix[r][c]
-                                        if (x === undefined || x === null) return ""
+
+                                        if (x === undefined || x === null)
+                                            return ""
+
                                         return String(x).trim()
                                     }
 
@@ -221,7 +290,6 @@ Item {
                                     }
                                 }
 
-                                // метка цикла (+/-/r) — правый нижний угол
                                 Rectangle {
                                     width: 22
                                     height: 18
@@ -232,9 +300,14 @@ Item {
                                     z: 6
 
                                     property string m: {
-                                        if (!root.markMatrix || !root.markMatrix[r]) return ""
+                                        if (!root.markMatrix || !root.markMatrix[r])
+                                            return ""
+
                                         const t = root.markMatrix[r][c]
-                                        if (t === undefined || t === null) return ""
+
+                                        if (t === undefined || t === null)
+                                            return ""
+
                                         return String(t).trim()
                                     }
 
@@ -254,6 +327,7 @@ Item {
                                     anchors.fill: parent
                                     enabled: root.interactive
                                     z: 10
+
                                     onClicked: {
                                         root.selectedRow = r
                                         root.selectedCol = c
@@ -264,7 +338,8 @@ Item {
                         }
 
                         Rectangle {
-                            width: 70; height: 70
+                            width: 70
+                            height: 70
                             color: "#fff8e6"
                             border.color: "#666"
                             radius: 4
@@ -272,7 +347,12 @@ Item {
 
                             TextInput {
                                 readonly property int r: rowRow.rowIndex
-                                text: supply[r]
+
+                                text: (root.supply
+                                       && root.supply[r] !== undefined
+                                       && root.supply[r] !== null)
+                                      ? String(root.supply[r])
+                                      : ""
 
                                 anchors.centerIn: parent
                                 width: parent.width - 12
@@ -291,19 +371,22 @@ Item {
                                 readOnly: root.readOnly
                                 activeFocusOnPress: !root.readOnly
 
-                                onTextChanged: {
-                                    if (root.readOnly) return
+                                onTextEdited: {
+                                    if (root.readOnly)
+                                        return
+
+                                    if (!root.supply)
+                                        return
 
                                     if (text === "") {
-                                        supply[r] = ""
-                                        supply = supply
-                                        root.changed()
+                                        root.supply[r] = ""
+                                    } else if (acceptableInput) {
+                                        root.supply[r] = text
+                                    } else {
                                         return
                                     }
-                                    if (acceptableInput) {
-                                        supply[r] = text
-                                        supply = supply
-                                    }
+
+                                    root.supply = root.supply.slice()
                                     root.changed()
                                 }
                             }
@@ -317,15 +400,21 @@ Item {
                     Repeater {
                         id: bottomDemandRepeater
                         model: columns
+
                         delegate: Rectangle {
-                            width: 70; height: 70
+                            width: 70
+                            height: 70
                             radius: 4
                             color: "#fff8e6"
                             border.color: "#666"
                             clip: true
 
                             TextInput {
-                                text: demand[index]
+                                text: (root.demand
+                                       && root.demand[index] !== undefined
+                                       && root.demand[index] !== null)
+                                      ? String(root.demand[index])
+                                      : ""
 
                                 anchors.centerIn: parent
                                 width: parent.width - 12
@@ -344,26 +433,32 @@ Item {
                                 readOnly: root.readOnly
                                 activeFocusOnPress: !root.readOnly
 
-                                onTextChanged: {
-                                    if (root.readOnly) return
+                                onTextEdited: {
+                                    if (root.readOnly)
+                                        return
+
+                                    if (!root.demand)
+                                        return
 
                                     if (text === "") {
-                                        demand[index] = ""
-                                        demand = demand
-                                        root.changed()
+                                        root.demand[index] = ""
+                                    } else if (acceptableInput) {
+                                        root.demand[index] = text
+                                    } else {
                                         return
                                     }
-                                    if (acceptableInput) {
-                                        demand[index] = text
-                                        demand = demand
-                                    }
+
+                                    root.demand = root.demand.slice()
                                     root.changed()
                                 }
                             }
                         }
                     }
 
-                    Item { width: 70; height: 70 }
+                    Item {
+                        width: 70
+                        height: 70
+                    }
                 }
             }
         }
@@ -375,36 +470,53 @@ Item {
     }
 
     function isComplete() {
+        if (!costMatrix || !supply || !demand)
+            return false
+
         for (let r = 0; r < rows; r++) {
+            if (!costMatrix[r])
+                return false
+
             for (let c = 0; c < columns; c++) {
-                if (costMatrix[r][c] === "" || costMatrix[r][c] === undefined)
+                if (costMatrix[r][c] === "" || costMatrix[r][c] === undefined || costMatrix[r][c] === null)
                     return false
             }
-            if (supply[r] === "" || supply[r] === undefined)
+
+            if (supply[r] === "" || supply[r] === undefined || supply[r] === null)
                 return false
         }
+
         for (let c = 0; c < columns; c++) {
-            if (demand[c] === "" || demand[c] === undefined)
+            if (demand[c] === "" || demand[c] === undefined || demand[c] === null)
                 return false
         }
+
         return true
     }
 
     function randomFill() {
+        const newCostMatrix = []
+        const newSupply = []
+        const newDemand = []
+
         for (let r = 0; r < rows; r++) {
+            const row = []
+
             for (let c = 0; c < columns; c++) {
-                costMatrix[r][c] = String(Math.floor(Math.random() * 30) + 1)
+                row.push(String(Math.floor(Math.random() * 30) + 1))
             }
-            supply[r] = String(Math.floor(Math.random() * 50) + 10)
-        }
-        for (let c = 0; c < columns; c++) {
-            demand[c] = String(Math.floor(Math.random() * 50) + 10)
+
+            newCostMatrix.push(row)
+            newSupply.push(String(Math.floor(Math.random() * 50) + 10))
         }
 
-        // “пинки” для обновления
-        costMatrix = costMatrix.map(row => row.slice())
-        supply = supply.slice()
-        demand = demand.slice()
+        for (let c = 0; c < columns; c++) {
+            newDemand.push(String(Math.floor(Math.random() * 50) + 10))
+        }
+
+        costMatrix = newCostMatrix
+        supply = newSupply
+        demand = newDemand
 
         changed()
     }

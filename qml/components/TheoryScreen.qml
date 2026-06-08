@@ -10,167 +10,89 @@ Item {
     anchors.fill: parent
 
     property bool matrixCreated: false
-    property bool workMatrixVisible: false
-    property int iterationNumber: 1
+    property var allStepsData: []
+    property var errorNotifier: null
 
     TheoryController {
         id: theoryController
     }
 
-    ListModel {
-        id: stepsModel
-    }
-
-    ScrollView {
-        id: scrollView
+    Flickable {
+        id: flick
         anchors.fill: parent
         clip: true
+        contentWidth: width
+        contentHeight: pageColumn.implicitHeight + 32
+        boundsBehavior: Flickable.StopAtBounds
 
-        ScrollBar.vertical.policy: ScrollBar.AsNeeded
-        ScrollBar.horizontal.policy: ScrollBar.AsNeeded
+        ScrollBar.vertical: ScrollBar { }
+
+        NumberAnimation {
+            id: scrollAnim
+            target: flick
+            property: "contentY"
+            duration: 450
+            easing.type: Easing.InOutQuad
+        }
 
         Column {
             id: pageColumn
-            width: Math.max(scrollView.availableWidth, 900)
-            spacing: 20
+            width: flick.width
+            spacing: 24
 
             Item { width: 1; height: 20 }
 
-            Text {
-                x: 40
-                text: "Исходная задача"
-                font.pixelSize: 24
-                font.bold: true
-                color: "#222222"
-            }
-
-            Text {
-                x: 40
-                width: pageColumn.width - 80
-                text: "Эта матрица используется для ввода и после запуска решения больше не изменяется."
-                wrapMode: Text.WordWrap
-                font.pixelSize: 15
-                color: "#555555"
-            }
-
-            Item {
-                id: inputHolder
-                x: 40
-                width: inputMatrix.visible ? inputMatrix.implicitWidth : 0
-                height: inputMatrix.visible ? inputMatrix.implicitHeight : 0
-            }
-
-            Text {
-                x: 40
-                visible: theoryController.statusText.length > 0
-                width: pageColumn.width - 80
-                text: theoryController.statusText
-                wrapMode: Text.WordWrap
-                font.pixelSize: 16
-                color: "#333333"
-            }
-
             Rectangle {
-                x: 40
-                width: pageColumn.width - 80
-                height: 1
-                color: "#d7d7d7"
-                visible: workMatrixVisible
-            }
+                id: inputSection
+                width: Math.min(pageColumn.width - 40, inputMatrix.visible ? inputMatrix.implicitWidth + 80 : 760)
+                height: inputColumn.implicitHeight + 32
+                radius: 14
+                color: "#ffffff"
+                border.color: "#dcdcdc"
+                anchors.horizontalCenter: parent.horizontalCenter
 
-            Text {
-                x: 40
-                visible: workMatrixVisible
-                text: "Рабочая матрица"
-                font.pixelSize: 24
-                font.bold: true
-                color: "#222222"
-            }
-
-            Text {
-                x: 40
-                visible: workMatrixVisible
-                width: pageColumn.width - 80
-                text: "Эта матрица изменяется алгоритмом. Именно с неё снимаются изображения шагов решения."
-                wrapMode: Text.WordWrap
-                font.pixelSize: 15
-                color: "#555555"
-            }
-
-            Item {
-                id: workHolder
-                x: 40
-                width: workMatrix.visible ? workMatrix.implicitWidth : 0
-                height: workMatrix.visible ? workMatrix.implicitHeight : 0
-                visible: workMatrixVisible
-            }
-
-            Rectangle {
-                x: 40
-                width: pageColumn.width - 80
-                height: 1
-                color: "#d7d7d7"
-                visible: stepsModel.count > 0
-            }
-
-            Text {
-                x: 40
-                visible: stepsModel.count > 0
-                text: "История шагов"
-                font.pixelSize: 24
-                font.bold: true
-                color: "#222222"
-            }
-
-            Repeater {
-                model: stepsModel
-
-                delegate: Column {
-                    width: pageColumn.width
-                    spacing: 10
+                Column {
+                    id: inputColumn
+                    x: 24
+                    y: 16
+                    width: parent.width - 48
+                    spacing: 12
 
                     Text {
-                        x: 40
-                        text: (index + 1) + ". " + title
-                        font.pixelSize: 20
+                        text: "Исходная задача"
+                        font.pixelSize: 24
                         font.bold: true
                         color: "#222222"
                     }
 
                     Text {
-                        x: 40
-                        width: pageColumn.width - 80
-                        visible: description && description.length > 0
-                        text: description
+                        width: parent.width
+                        text: "Матрица для ввода данных."
                         wrapMode: Text.WordWrap
                         font.pixelSize: 15
-                        color: "#444444"
+                        color: "#666666"
                     }
 
-                    Rectangle {
-                        x: 40
-                        width: imageItem.paintedWidth + 16
-                        height: imageItem.paintedHeight + 16
-                        color: "#ffffff"
-                        border.color: "#cfcfcf"
-                        radius: 8
-                        visible: imageSource !== ""
-
-                        Image {
-                            id: imageItem
-                            anchors.centerIn: parent
-                            source: imageSource
-                            fillMode: Image.Pad
-                            cache: true
-                            asynchronous: true
-                        }
+                    Item {
+                        id: inputHolder
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: inputMatrix.visible ? inputMatrix.implicitWidth : 0
+                        height: inputMatrix.visible ? inputMatrix.implicitHeight : 0
                     }
 
                     Text {
-                        x: 40
-                        width: pageColumn.width - 80
-                        visible: calculationText && calculationText.length > 0
-                        text: calculationText
+                        visible: theoryController.statusText.length > 0
+                        width: parent.width
+                        text: theoryController.statusText
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 15
+                        color: "#333333"
+                    }
+
+                    Text {
+                        visible: allStepsData.length > 0
+                        width: parent.width
+                        text: "Количество шагов: " + allStepsData.length
                         wrapMode: Text.WordWrap
                         font.pixelSize: 15
                         color: "#333333"
@@ -178,7 +100,32 @@ Item {
                 }
             }
 
-            Item { width: 1; height: 20 }
+            Item {
+                id: solutionAnchor
+                width: 1
+                height: 1
+                visible: allStepsData.length > 0
+            }
+
+            Rectangle {
+                id: solutionSection
+                visible: allStepsData.length > 0
+                width: pageColumn.width - 40
+                height: stepViewer.implicitHeight + 24
+                radius: 14
+                color: "#ffffff"
+                border.color: "#dcdcdc"
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                StepViewer {
+                    id: stepViewer
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    allStepsData: theoryScreen.allStepsData
+                }
+            }
+
+            Item { width: 1; height: 24 }
         }
     }
 
@@ -199,36 +146,17 @@ Item {
         columns: 0
     }
 
-    MatrixView {
-        id: workMatrix
-        parent: workHolder
-        x: 0
-        y: 0
-
-        visible: workMatrixVisible
-        readOnly: true
-        autoInit: false
-        interactive: false
-        showLoads: true
-        showMarks: true
-
-        rows: 0
-        columns: 0
-    }
-
     function createMatrix(r, c) {
         if (r < 1 || c < 1)
             return
 
         matrixCreated = true
-        workMatrixVisible = false
-        iterationNumber = 1
-
         inputMatrix.resizeAndReset(r, c)
-        workMatrix.resizeAndReset(r, c)
 
-        clearHistory()
+        allStepsData = []
+
         theoryController.clear()
+        flick.contentY = 0
     }
 
     function randomize() {
@@ -240,15 +168,14 @@ Item {
     }
 
     function clear() {
-        clearHistory()
         theoryController.clear()
 
         inputMatrix.resizeAndReset(1, 1)
-        workMatrix.resizeAndReset(1, 1)
 
         matrixCreated = false
-        workMatrixVisible = false
-        iterationNumber = 1
+        allStepsData = []
+
+        flick.contentY = 0
     }
 
     function solve() {
@@ -262,393 +189,83 @@ Item {
             return
         }
 
-        iterationNumber = 1
+        allStepsData = []
 
-        const okBalance = theoryController.runBalanceStage(
+        const ok = theoryController.solveAll(
             inputMatrix.costMatrix,
             inputMatrix.supply,
             inputMatrix.demand
         )
 
-        if (!okBalance)
+        if (!ok)
             return
 
-        clearHistory()
+        allStepsData = theoryController.allSteps
+        saveTaskToHistory()
 
-        copyInputToWorkMatrix()
-        workMatrixVisible = true
-
-        captureWorkStep(
-            "Исходная задача",
-            "Исходная транспортная задача до этапа балансировки.",
-            "",
-            function() {
-                if (theoryController.balanceNeeded) {
-                    applyBalancedProblem()
-
-                    captureWorkStep(
-                        "Задача после балансировки",
-                        theoryController.statusText,
-                        "",
-                        function() {
-                            runMinCostAndCapture()
-                        }
-                    )
-                } else {
-                    captureWorkStep(
-                        "Балансировка не требуется",
-                        theoryController.statusText,
-                        "",
-                        function() {
-                            runMinCostAndCapture()
-                        }
-                    )
-                }
-            }
-        )
-    }
-
-    function copyInputToWorkMatrix() {
-        const rows = inputMatrix.rows
-        const cols = inputMatrix.columns
-
-        workMatrix.resizeAndReset(rows, cols)
-
-        workMatrix.costMatrix = copy2D(inputMatrix.costMatrix)
-        workMatrix.supply = copy1D(inputMatrix.supply)
-        workMatrix.demand = copy1D(inputMatrix.demand)
-
-        workMatrix.loadMatrix = emptyStringMatrix(rows, cols)
-        workMatrix.markMatrix = emptyStringMatrix(rows, cols)
-        workMatrix.selectedRow = -1
-        workMatrix.selectedCol = -1
-        workMatrix.showLoads = true
-        workMatrix.showMarks = true
-    }
-
-    function applyBalancedProblem() {
-        const rows = theoryController.resultRows
-        const cols = theoryController.resultCols
-
-        if (rows < 1 || cols < 1)
-            return
-
-        workMatrix.resizeAndReset(rows, cols)
-
-        workMatrix.costMatrix = toString2D(theoryController.resultCostMatrix)
-        workMatrix.supply = toString1D(theoryController.resultSupply)
-        workMatrix.demand = toString1D(theoryController.resultDemand)
-
-        workMatrix.loadMatrix = emptyStringMatrix(rows, cols)
-        workMatrix.markMatrix = emptyStringMatrix(rows, cols)
-        workMatrix.selectedRow = -1
-        workMatrix.selectedCol = -1
-        workMatrix.showLoads = true
-        workMatrix.showMarks = true
-    }
-
-    function captureWorkStep(title, description, calculationText, onDone) {
-        if (!workMatrixVisible) {
-            if (onDone)
-                onDone()
-            return
+        if (allStepsData.length > 0) {
+            Qt.callLater(function() {
+                scrollToSolution()
+            })
         }
 
-        workMatrix.grabToImage(function(result) {
-            stepsModel.append({
-                title: title,
-                description: description ? description : "",
-                calculationText: calculationText ? calculationText : "",
-                imageSource: result.url
-            })
+    }
 
-            if (onDone)
-                onDone()
+    function scrollToSolution() {
+        if (!solutionSection.visible)
+            return
+
+        const maxY = Math.max(0, flick.contentHeight - flick.height)
+        const targetY = Math.max(0, Math.min(solutionAnchor.y - 12, maxY))
+
+        scrollAnim.stop()
+        scrollAnim.to = targetY
+        scrollAnim.start()
+    }
+
+    signal historyEntryCreated(var entry)
+
+    function copy1D(a) {
+        return a ? a.slice() : []
+    }
+
+    function copy2D(a) {
+        return a ? a.map(function(row) { return row.slice() }) : []
+    }
+
+    function clone2D(a) {
+        return a ? a.map(function(row) { return row.slice() }) : []
+    }
+
+    function clone1D(a) {
+        return a ? a.slice() : []
+    }
+
+    function saveTaskToHistory() {
+        historyEntryCreated({
+            moduleType: "Теория",
+            title: "Теория " + inputMatrix.rows + "×" + inputMatrix.columns,
+            rows: inputMatrix.rows,
+            cols: inputMatrix.columns,
+            costMatrix: copy2D(inputMatrix.costMatrix),
+            supply: copy1D(inputMatrix.supply),
+            demand: copy1D(inputMatrix.demand)
         })
     }
 
-    function clearHistory() {
-        stepsModel.clear()
-    }
 
-    function copy1D(arr) {
-        let out = []
-        for (let i = 0; i < arr.length; ++i)
-            out.push(String(arr[i]))
-        return out
-    }
-
-    function copy2D(arr) {
-        let out = []
-        for (let i = 0; i < arr.length; ++i) {
-            let row = []
-            for (let j = 0; j < arr[i].length; ++j)
-                row.push(String(arr[i][j]))
-            out.push(row)
-        }
-        return out
-    }
-
-    function toString1D(arr) {
-        let out = []
-        for (let i = 0; i < arr.length; ++i)
-            out.push(String(arr[i]))
-        return out
-    }
-
-    function toString2D(arr) {
-        let out = []
-        for (let i = 0; i < arr.length; ++i) {
-            let row = []
-            for (let j = 0; j < arr[i].length; ++j)
-                row.push(String(arr[i][j]))
-            out.push(row)
-        }
-        return out
-    }
-
-    function emptyStringMatrix(r, c) {
-        let arr = []
-        for (let i = 0; i < r; ++i) {
-            let row = []
-            for (let j = 0; j < c; ++j)
-                row.push("")
-            arr.push(row)
-        }
-        return arr
-    }
-
-    function runMinCostAndCapture() {
-        const ok = theoryController.runMinCostStage()
-        if (!ok)
+    function loadFromHistoryData(entry) {
+        if (!entry || !entry.rows || !entry.cols)
             return
 
-        playMinCostSteps(0)
-    }
+        createMatrix(entry.rows, entry.cols)
 
-    function playMinCostSteps(index) {
-        const steps = theoryController.minCostSteps
+        inputMatrix.costMatrix = clone2D(entry.costMatrix)
+        inputMatrix.supply = clone1D(entry.supply)
+        inputMatrix.demand = clone1D(entry.demand)
 
-        if (!steps || index >= steps.length) {
-            runPotentialStageAndCapture()
-            return
-        }
-
-        const step = steps[index]
-        applyMinCostStep(step)
-
-        captureWorkStep(
-            step.title,
-            step.description,
-            step.calculationText ? step.calculationText : "",
-            function() {
-                playMinCostSteps(index + 1)
-            }
-        )
-    }
-
-    function applyMinCostStep(step) {
-        const rows = step.rows
-        const cols = step.cols
-
-        if (rows < 1 || cols < 1)
-            return
-
-        if (workMatrix.rows !== rows || workMatrix.columns !== cols)
-            workMatrix.resizeAndReset(rows, cols)
-
-        workMatrix.costMatrix = toString2D(step.costMatrix)
-        workMatrix.supply = toString1D(step.supply)
-        workMatrix.demand = toString1D(step.demand)
-        workMatrix.loadMatrix = toString2D(step.loadMatrix)
-        workMatrix.markMatrix = toString2D(step.markMatrix)
-        workMatrix.selectedRow = step.selectedRow
-        workMatrix.selectedCol = step.selectedCol
-        workMatrix.showLoads = true
-        workMatrix.showMarks = true
-    }
-
-    function runPotentialStageAndCapture() {
-        const ok = theoryController.runPotentialStage()
-        if (!ok)
-            return
-
-        playPotentialSteps(0)
-    }
-
-    function playPotentialSteps(index) {
-        const steps = theoryController.potentialSteps
-
-        if (!steps || index >= steps.length) {
-            if (theoryController.potentialOptimal) {
-                captureFinalSolution()
-            } else {
-                runCycleStageAndCapture()
-            }
-            return
-        }
-
-        const step = steps[index]
-        applyPotentialStep(step)
-
-        captureWorkStep(
-            "Итерация " + iterationNumber + ". " + step.title,
-            step.description,
-            step.calculationText ? step.calculationText : "",
-            function() {
-                playPotentialSteps(index + 1)
-            }
-        )
-    }
-
-    function applyPotentialStep(step) {
-        const rows = step.rows
-        const cols = step.cols
-
-        if (rows < 1 || cols < 1)
-            return
-
-        if (workMatrix.rows !== rows || workMatrix.columns !== cols)
-            workMatrix.resizeAndReset(rows, cols)
-
-        workMatrix.costMatrix = toString2D(step.costMatrix)
-        workMatrix.supply = toString1D(step.supply)
-        workMatrix.demand = toString1D(step.demand)
-        workMatrix.loadMatrix = toString2D(step.loadMatrix)
-        workMatrix.markMatrix = toString2D(step.markMatrix)
-        workMatrix.selectedRow = step.selectedRow
-        workMatrix.selectedCol = step.selectedCol
-        workMatrix.showLoads = true
-        workMatrix.showMarks = true
-    }
-
-    function runCycleStageAndCapture() {
-        const ok = theoryController.runCycleStage()
-        if (!ok)
-            return
-
-        playCycleSteps(0)
-    }
-
-    function playCycleSteps(index) {
-        const steps = theoryController.cycleSteps
-
-        if (!steps || index >= steps.length) {
-            runRecalculationStageAndCapture()
-            return
-        }
-
-        const step = steps[index]
-        applyCycleStep(step)
-
-        captureWorkStep(
-            "Итерация " + iterationNumber + ". " + step.title,
-            step.description,
-            step.calculationText ? step.calculationText : "",
-            function() {
-                playCycleSteps(index + 1)
-            }
-        )
-    }
-
-    function applyCycleStep(step) {
-        const rows = step.rows
-        const cols = step.cols
-
-        if (rows < 1 || cols < 1)
-            return
-
-        if (workMatrix.rows !== rows || workMatrix.columns !== cols)
-            workMatrix.resizeAndReset(rows, cols)
-
-        workMatrix.costMatrix = toString2D(step.costMatrix)
-        workMatrix.supply = toString1D(step.supply)
-        workMatrix.demand = toString1D(step.demand)
-        workMatrix.loadMatrix = toString2D(step.loadMatrix)
-        workMatrix.markMatrix = toString2D(step.markMatrix)
-        workMatrix.selectedRow = step.selectedRow
-        workMatrix.selectedCol = step.selectedCol
-        workMatrix.showLoads = true
-        workMatrix.showMarks = true
-    }
-
-    function runRecalculationStageAndCapture() {
-        const ok = theoryController.runRecalculationStage()
-        if (!ok)
-            return
-
-        playRecalculationSteps(0)
-    }
-
-    function playRecalculationSteps(index) {
-        const steps = theoryController.recalculationSteps
-
-        if (!steps || index >= steps.length) {
-            iterationNumber += 1
-            runPotentialStageAndCapture()
-            return
-        }
-
-        const step = steps[index]
-        applyRecalculationStep(step)
-
-        captureWorkStep(
-            "Итерация " + iterationNumber + ". " + step.title,
-            step.description,
-            step.calculationText ? step.calculationText : "",
-            function() {
-                playRecalculationSteps(index + 1)
-            }
-        )
-    }
-
-    function applyRecalculationStep(step) {
-        const rows = step.rows
-        const cols = step.cols
-
-        if (rows < 1 || cols < 1)
-            return
-
-        if (workMatrix.rows !== rows || workMatrix.columns !== cols)
-            workMatrix.resizeAndReset(rows, cols)
-
-        workMatrix.costMatrix = toString2D(step.costMatrix)
-        workMatrix.supply = toString1D(step.supply)
-        workMatrix.demand = toString1D(step.demand)
-        workMatrix.loadMatrix = toString2D(step.loadMatrix)
-        workMatrix.markMatrix = toString2D(step.markMatrix)
-        workMatrix.selectedRow = step.selectedRow
-        workMatrix.selectedCol = step.selectedCol
-        workMatrix.showLoads = true
-        workMatrix.showMarks = true
-    }
-
-    function captureFinalSolution() {
-        workMatrix.markMatrix = emptyStringMatrix(workMatrix.rows, workMatrix.columns)
-        workMatrix.selectedRow = -1
-        workMatrix.selectedCol = -1
-
-        const total = theoryController.currentTotalCost()
-
-        let calcText = "Итоговая стоимость плана:\n"
-        for (let r = 0; r < workMatrix.rows; ++r) {
-            for (let c = 0; c < workMatrix.columns; ++c) {
-                const x = String(workMatrix.loadMatrix[r][c]).trim()
-                if (x.length === 0)
-                    continue
-
-                const cost = Number(workMatrix.costMatrix[r][c])
-                const load = Number(x)
-                calcText += "c" + (r + 1) + (c + 1) + " * x" + (r + 1) + (c + 1) +
-                            " = " + cost + " * " + load + " = " + (cost * load) + "\n"
-            }
-        }
-        calcText += "\nZ = " + total
-
-        captureWorkStep(
-            "Оптимальное решение найдено",
-            "После очередной проверки оптимальности все оценки стали неотрицательными.",
-            calcText
-        )
+        allStepsData = []
+        theoryController.clear()
+        flick.contentY = 0
     }
 }

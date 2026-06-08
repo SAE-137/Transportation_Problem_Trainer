@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
+import QtQml
 
 import "components"
 
@@ -13,9 +14,80 @@ ApplicationWindow {
     title: "Transportation Trainer"
     color: "#222222"
 
-    property string currentScreen: "components/TheoryScreen.qml"
+    property int currentScreenIndex: 0
+    property var historyEntries: []
 
-    //  МЕНЮ-Бар
+    property Item activeScreenItem: currentScreenIndex === 0 ? theoryScreen : practiceScreen
+
+    function copy1D(a) {
+        return a ? a.slice() : []
+    }
+
+    function copy2D(a) {
+        return a ? a.map(function(row) { return row.slice() }) : []
+    }
+
+    function addHistoryEntry(entry) {
+        if (!entry)
+            return
+
+        const prepared = {
+            moduleType: entry.moduleType || "Неизвестно",
+            title: entry.title || ((entry.moduleType || "Задача") + " " + entry.rows + "×" + entry.cols),
+            rows: entry.rows || 0,
+            cols: entry.cols || 0,
+            costMatrix: copy2D(entry.costMatrix),
+            supply: copy1D(entry.supply),
+            demand: copy1D(entry.demand),
+            createdAtText: Qt.formatDateTime(new Date(), "dd.MM.yyyy hh:mm")
+        }
+
+        historyEntries = [prepared].concat(historyEntries)
+
+        if (historyEntries.length > 30)
+            historyEntries = historyEntries.slice(0, 30)
+    }
+
+    function applyHistoryEntry(entry) {
+        if (!entry || !activeScreenItem || !activeScreenItem.loadFromHistoryData) {
+            console.log("Текущий модуль не поддерживает применение матрицы из истории")
+            return
+        }
+
+        activeScreenItem.loadFromHistoryData(entry)
+        historyDrawer.close()
+    }
+
+    HistoryDrawer {
+        id: historyDrawer
+        entries: root.historyEntries
+        onApplyRequested: (entry) => root.applyHistoryEntry(entry)
+    }
+
+    SideErrorNotification {
+        id: errorNotification
+        parent: Overlay.overlay
+        z: 10000
+    }
+
+    Connections {
+        target: theoryScreen
+        ignoreUnknownSignals: true
+
+        function onHistoryEntryCreated(entry) {
+            root.addHistoryEntry(entry)
+        }
+    }
+
+    Connections {
+        target: practiceScreen
+        ignoreUnknownSignals: true
+
+        function onHistoryEntryCreated(entry) {
+            root.addHistoryEntry(entry)
+        }
+    }
+
     Rectangle {
         id: menuBar
         height: 30
@@ -36,18 +108,50 @@ ApplicationWindow {
 
             HeaderButton {
                 text: "История"
-                onClicked: console.log("История")
+                onClicked: historyDrawer.open()
             }
 
             HeaderButton {
                 text: "Теор. материалы"
-                onClicked: console.log("Теор. материалы")
+                onClicked: Qt.openUrlExternally(
+                    Qt.resolvedUrl("../materials/Transportnaya_zadacha_-_metodicheskoe_posobie.pdf")
+                )
+            }
+        }
+
+        ToolButton {
+            id: historyIconButton
+            width: 34
+            height: 24
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+
+            onClicked: {
+                if (historyDrawer.opened)
+                    historyDrawer.close()
+                else
+                    historyDrawer.open()
+            }
+
+            contentItem: Text {
+                text: "≡"
+                font.pixelSize: 20
+                font.bold: true
+                color: "#f3f0ea"
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            background: Rectangle {
+                radius: 6
+                color: historyIconButton.down ? "#4b443c"
+                                              : historyIconButton.hovered ? "#3b3530"
+                                                                          : "transparent"
+                border.color: historyDrawer.opened ? "#8f7f6b" : "transparent"
             }
         }
     }
-
-
-    // панель кнопок действий
 
     Rectangle {
         id: actionBar
@@ -76,12 +180,11 @@ ApplicationWindow {
                 value: 3
             }
 
-
             ActionButton {
                 text: "Создать"
                 onClicked: {
-                    if (screenLoader.item && screenLoader.item.createMatrix) {
-                        screenLoader.item.createMatrix(rowInput.value, colInput.value)
+                    if (root.activeScreenItem && root.activeScreenItem.createMatrix) {
+                        root.activeScreenItem.createMatrix(rowInput.value, colInput.value)
                     } else {
                         console.log("createMatrix не поддерживается на этом экране")
                     }
@@ -91,8 +194,8 @@ ApplicationWindow {
             ActionButton {
                 text: "Рандом"
                 onClicked: {
-                    if (screenLoader.item && screenLoader.item.randomize) {
-                        screenLoader.item.randomize()
+                    if (root.activeScreenItem && root.activeScreenItem.randomize) {
+                        root.activeScreenItem.randomize()
                     } else {
                         console.log("randomize не поддерживается на этом экране")
                     }
@@ -102,8 +205,8 @@ ApplicationWindow {
             ActionButton {
                 text: "Решить"
                 onClicked: {
-                    if (screenLoader.item && screenLoader.item.solve) {
-                        screenLoader.item.solve()
+                    if (root.activeScreenItem && root.activeScreenItem.solve) {
+                        root.activeScreenItem.solve()
                     } else {
                         console.log("solve не поддерживается на этом экране")
                     }
@@ -113,19 +216,16 @@ ApplicationWindow {
             ActionButton {
                 text: "Очистить"
                 onClicked: {
-                    if (screenLoader.item && screenLoader.item.clear) {
-                        screenLoader.item.clear()
+                    if (root.activeScreenItem && root.activeScreenItem.clear) {
+                        root.activeScreenItem.clear()
                     } else {
                         console.log("clear не поддерживается на этом экране")
                     }
                 }
             }
-
         }
     }
 
-
-    // ВКЛАДКИ (Теория / Практика)
     Rectangle {
         id: modeTabs
         height: 40
@@ -138,22 +238,15 @@ ApplicationWindow {
 
             TabButton {
                 text: "Теория"
-                onClicked: currentScreen = "components/TheoryScreen.qml"
+                onClicked: root.currentScreenIndex = 0
             }
 
             TabButton {
                 text: "Практика"
-                onClicked:
-                {
-                    currentScreen = "components/PracticeScreen.qml"
-                    console.log("кнопка практика была нажата")
-                }
+                onClicked: root.currentScreenIndex = 1
             }
         }
     }
-
-
-    // основная область
 
     Rectangle {
         id: centralArea
@@ -163,16 +256,24 @@ ApplicationWindow {
         anchors.bottom: parent.bottom
         color: "#f7f6f4"
 
-        Loader {
-            id: screenLoader
+        StackLayout {
+            id: screenStack
             anchors.fill: parent
-            source: currentScreen
+            currentIndex: root.currentScreenIndex
+
+            TheoryScreen {
+                id: theoryScreen
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                errorNotifier: errorNotification
+            }
+
+            PracticeScreen {
+                id: practiceScreen
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                errorNotifier: errorNotification
+            }
         }
     }
-
-
-
-
-
 }
-

@@ -16,9 +16,7 @@ Item {
     signal balancedYes()
     signal balancedNo()
 
-    // --- служебные функции ---
     function toIntOrNaN(x) {
-        // x у тебя строка. Пустая строка -> NaN
         if (x === undefined || x === null) return NaN
         if (typeof x === "number") return x
         const s = String(x).trim()
@@ -28,11 +26,9 @@ Item {
     }
 
     function checkBalanced() {
-        // Возвращает объект: { ok: bool, balanced: bool, sumS: number, sumD: number, error: string }
         let sumS = 0
         let sumD = 0
 
-        // базовые проверки
         if (rows <= 0 || columns <= 0)
             return { ok: false, error: "Неверная размерность матрицы" }
 
@@ -67,18 +63,15 @@ Item {
         }
 
         if (userSaysBalanced && res.balanced) {
-            // ✅ пользователь прав: сбалансирована
             root.balancedYes()
             return
         }
 
         if (!userSaysBalanced && !res.balanced) {
-            // ✅ пользователь прав: НЕ сбалансирована
             root.balancedNo()
             return
         }
 
-        // ❌ пользователь ошибся
         if (userSaysBalanced && !res.balanced) {
             console.log("Ошибка: задача НЕ сбалансирована (Σзапасов=" + res.sumS + ", Σпотребностей=" + res.sumD + ")")
         } else if (!userSaysBalanced && res.balanced) {
@@ -86,70 +79,106 @@ Item {
         }
     }
 
-    ColumnLayout {
+    ScrollView {
+        id: pageScroll
         anchors.fill: parent
-        spacing: 16
+        clip: true
 
-        // Матрица сверху (только просмотр)
-        MatrixView {
-            id: matrixPreview
-            Layout.alignment: Qt.AlignHCenter
-            readOnly: true
-            autoInit: false
+        contentWidth: pageContent.width
+        contentHeight: pageContent.height
 
-            rows: root.rows
-            columns: root.columns
-            costMatrix: root.costMatrix
-            supply: root.supply
-            demand: root.demand
-        }
+        ScrollBar.horizontal.policy: contentWidth > availableWidth
+                                     ? ScrollBar.AsNeeded
+                                     : ScrollBar.AlwaysOff
 
-        Text {
-            text: "Сбалансирована ли транспортная задача?"
-            font.pixelSize: 20
-            color: "#111"
-            horizontalAlignment: Text.AlignHCenter
-            Layout.alignment: Qt.AlignHCenter
-        }
+        ScrollBar.vertical.policy: contentHeight > availableHeight
+                                   ? ScrollBar.AsNeeded
+                                   : ScrollBar.AlwaysOff
 
-        RowLayout {
-            spacing: 12
-            Layout.alignment: Qt.AlignHCenter
+        Item {
+            id: pageContent
+            width: Math.max(pageScroll.availableWidth, contentColumn.implicitWidth + 32)
+            height: contentColumn.implicitHeight + 32
 
-            Button {
-                text: "Да"
-                background: Rectangle { radius: 10; color: "#22c55e" }
-                contentItem: Text {
-                    text: "Да"
-                    color: "white"
-                    font.pixelSize: 16
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+            ColumnLayout {
+                id: contentColumn
+                anchors.top: parent.top
+                anchors.topMargin: 16
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 16
+
+                MatrixView {
+                    id: matrixPreview
+                    Layout.alignment: Qt.AlignHCenter
+                    readOnly: true
+                    autoInit: false
+
+                    rows: root.rows
+                    columns: root.columns
+                    costMatrix: root.costMatrix
+                    supply: root.supply
+                    demand: root.demand
                 }
-                onClicked: handleAnswer(true)
-            }
 
-            Button {
-                text: "Нет"
-                background: Rectangle { radius: 10; color: "#ef4444" }
-                contentItem: Text {
-                    text: "Нет"
-                    color: "white"
-                    font.pixelSize: 16
+                Text {
+                    text: "Сбалансирована ли транспортная задача?"
+                    font.pixelSize: 20
+                    color: "#111"
                     horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                    Layout.alignment: Qt.AlignHCenter
                 }
-                onClicked: handleAnswer(false)
+
+                RowLayout {
+                    spacing: 12
+                    Layout.alignment: Qt.AlignHCenter
+
+                    Button {
+                        text: "Да"
+
+                        background: Rectangle {
+                            radius: 10
+                            color: "#22c55e"
+                        }
+
+                        contentItem: Text {
+                            text: "Да"
+                            color: "white"
+                            font.pixelSize: 16
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        onClicked: handleAnswer(true)
+                    }
+
+                    Button {
+                        text: "Нет"
+
+                        background: Rectangle {
+                            radius: 10
+                            color: "#ef4444"
+                        }
+
+                        contentItem: Text {
+                            text: "Нет"
+                            color: "white"
+                            font.pixelSize: 16
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        onClicked: handleAnswer(false)
+                    }
+                }
+
+                Text {
+                    text: "Подсказка: сумма запасов должна равняться сумме потребностей."
+                    color: "#444"
+                    font.pixelSize: 14
+                    horizontalAlignment: Text.AlignHCenter
+                    Layout.alignment: Qt.AlignHCenter
+                }
             }
         }
-
-        Text {
-            text: "Подсказка: сумма запасов должна равняться сумме потребностей."
-            color: "#444"
-            font.pixelSize: 14
-            Layout.alignment: Qt.AlignHCenter
-        }
-
-        Item { Layout.fillHeight: true }
     }
 }

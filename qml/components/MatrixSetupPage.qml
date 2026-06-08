@@ -6,16 +6,11 @@ Item {
     id: root
     anchors.fill: parent
 
-    // чтобы PracticeScreen мог переключить этап
     signal proceedRequested()
 
-    // наружу отдаём доступ к матрице (для копирования в work)
     property alias matrix: matrix
-
-    // когда этап 0 завершён — блокируем редактирование (как "скриншот")
     property bool locked: false
 
-    // входные параметры (их будет дергать верхний actionBar)
     function createMatrix(r, c) {
         if (locked) return
         matrix.resizeAndReset(r, c)
@@ -35,48 +30,73 @@ Item {
     }
 
     function updateProceedState() {
-        // если locked — кнопка уже не нужна
         proceedButton.enabled = (!locked) && matrix.isComplete()
     }
 
-    ColumnLayout {
+    ScrollView {
+        id: pageScroll
         anchors.fill: parent
-        spacing: 14
+        clip: true
 
-        Item { Layout.fillHeight: true }
+        contentWidth: pageContent.width
+        contentHeight: pageContent.height
 
-        MatrixView {
-            id: matrix
-            Layout.alignment: Qt.AlignHCenter
-            readOnly: root.locked
-            autoInit: true
+        ScrollBar.horizontal.policy: contentWidth > availableWidth
+                                     ? ScrollBar.AsNeeded
+                                     : ScrollBar.AlwaysOff
 
-            onChanged: root.updateProceedState()
-        }
+        ScrollBar.vertical.policy: contentHeight > availableHeight
+                                   ? ScrollBar.AsNeeded
+                                   : ScrollBar.AlwaysOff
 
-        Button {
-            id: proceedButton
-            Layout.alignment: Qt.AlignHCenter
-            text: root.locked ? "Этап завершён" : "Приступить к решению"
-            enabled: false
-            visible: !root.locked
+        Item {
+            id: pageContent
+            width: Math.max(pageScroll.availableWidth, contentColumn.implicitWidth + 32)
+            height: contentColumn.implicitHeight + 32
 
-            background: Rectangle {
-                radius: 10
-                color: proceedButton.enabled ? "#22c55e" : "#9ca3af"
+            ColumnLayout {
+                id: contentColumn
+                anchors.top: parent.top
+                anchors.topMargin: 16
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: 14
+
+                MatrixView {
+                    id: matrix
+                    Layout.alignment: Qt.AlignHCenter
+                    readOnly: root.locked
+                    autoInit: true
+
+                    onChanged: root.updateProceedState()
+                }
+
+                Button {
+                    id: proceedButton
+                    Layout.alignment: Qt.AlignHCenter
+                    implicitWidth: 260
+                    implicitHeight: 44
+
+                    text: root.locked ? "Этап завершён" : "Приступить к решению"
+                    enabled: false
+                    visible: !root.locked
+
+                    background: Rectangle {
+                        radius: 10
+                        color: proceedButton.enabled ? "#22c55e" : "#9ca3af"
+                    }
+
+                    contentItem: Text {
+                        text: proceedButton.text
+                        color: "white"
+                        font.pixelSize: 16
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    onClicked: root.proceedRequested()
+                }
             }
-            contentItem: Text {
-                text: proceedButton.text
-                color: "white"
-                font.pixelSize: 16
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            onClicked: root.proceedRequested()
         }
-
-        Item { Layout.fillHeight: true }
     }
 
     Component.onCompleted: updateProceedState()
