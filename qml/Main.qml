@@ -103,7 +103,7 @@ ApplicationWindow {
 
             HeaderButton {
                 text: "Настройки"
-                onClicked: console.log("Настройки")
+                onClicked: theoryScreen.captureFullPage()
             }
 
             HeaderButton {

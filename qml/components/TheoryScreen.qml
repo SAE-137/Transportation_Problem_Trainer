@@ -268,4 +268,19 @@ Item {
         theoryController.clear()
         flick.contentY = 0
     }
+
+    function captureFullPage() {
+        // Захватываем всю колонку pageColumn
+        var grabber = pageColumn.grabToImage(function(result) {
+            if (result) {
+                // Сохраняем в файл (можно указать любой путь)
+                result.saveToFile("screenshot_full_page.png");
+                console.log("Скриншот сохранён как screenshot_full_page.png");
+            } else {
+                console.warn("Не удалось создать снимок");
+            }
+        });
+    }
 }
+
+

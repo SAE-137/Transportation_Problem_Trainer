@@ -114,21 +114,17 @@ cd Transportation_Problem_Trainer
 ---
 
 
-### Главное окно
-
-![Main Window](images/main.png)
-
 ### Режим «Теория»
 
-![Theory](images/theory.png)
+![Theory](images/TheoryScreen.png)
 
 ### Режим «Практика»
 
-![Practice](images/practice.png)
+![Practice](images/PracticeScreen.png)
 
 ---
 
-## 📚 Используемые технологии
+## Используемые технологии
 
 - C++17
 - Qt 6
