@@ -64,7 +64,7 @@
 - `StepViewer.qml`
 - `MatrixView.qml`
 
-### Вычислительная логика теоритического модуля (C++)
+### Вычислительная логика теоретического модуля (C++)
 
 - `TransportProblemState`
 - `BalanceSolver`
